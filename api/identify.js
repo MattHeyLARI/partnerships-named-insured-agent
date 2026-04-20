@@ -104,7 +104,6 @@ export default async function handler(req, res) {
         "Content-Type": "application/json",
         "x-api-key": apiKey,
         "anthropic-version": "2023-06-01",
-        "anthropic-beta": "interleaved-thinking-2025-05-14",
       },
       body: JSON.stringify({
         model: "claude-sonnet-4-20250514",
