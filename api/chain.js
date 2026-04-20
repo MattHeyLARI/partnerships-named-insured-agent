@@ -142,7 +142,7 @@ export default async function handler(req, res) {
       const naicsRes = await fetch(`${NAICS_URL}/assign-naics`, {
         method: "POST",
         body: naicsForm,
-        signal: AbortSignal.timeout(180_000),
+        signal: AbortSignal.timeout(240_000), // 4min — allows one 65s rate-limit retry
       });
       if (!naicsRes.ok) {
         const errText = await naicsRes.text();
