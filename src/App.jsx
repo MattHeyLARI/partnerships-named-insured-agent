@@ -12,16 +12,6 @@ function fileToBase64(file) {
   });
 }
 
-function getMediaType(file) {
-  if (file.type) return file.type;
-  const ext = file.name.split(".").pop().toLowerCase();
-  if (ext === "pdf") return "application/pdf";
-  if (ext === "png") return "image/png";
-  if (ext === "jpg" || ext === "jpeg") return "image/jpeg";
-  if (ext === "webp") return "image/webp";
-  return "application/octet-stream";
-}
-
 function pct(n, d) {
   if (!d || d === 0) return "—";
   return `${Math.round((n / d) * 100)}%`;
@@ -90,7 +80,7 @@ const StatCard = ({ label, value, sub, accent }) => (
   </div>
 );
 
-// Upload drop zone
+// SOV upload drop zone
 const DropZone = ({ label, hint, accept, file, onFile, icon }) => {
   const [dragging, setDragging] = useState(false);
   const inputRef = useRef();
@@ -109,20 +99,16 @@ const DropZone = ({ label, hint, accept, file, onFile, icon }) => {
       onDragLeave={() => setDragging(false)}
       onDrop={handleDrop}
       style={{
-        flex: 1,
         border: `2px dashed ${dragging ? "rgba(99,102,241,0.6)" : file ? "rgba(34,197,94,0.4)" : "rgba(255,255,255,0.12)"}`,
-        borderRadius: "12px",
-        padding: "24px 16px",
-        textAlign: "center",
+        borderRadius: "12px", padding: "20px 16px", textAlign: "center",
         cursor: "pointer",
         background: dragging ? "rgba(99,102,241,0.05)" : file ? "rgba(34,197,94,0.04)" : "rgba(255,255,255,0.02)",
         transition: "all 0.15s",
-        minWidth: 0,
       }}
     >
       <input ref={inputRef} type="file" accept={accept} style={{ display: "none" }}
         onChange={e => { const f = e.target.files[0]; if (f) onFile(f); }} />
-      <div style={{ fontSize: "28px", marginBottom: "10px" }}>{file ? "✅" : icon}</div>
+      <div style={{ fontSize: "24px", marginBottom: "8px" }}>{file ? "✅" : icon}</div>
       <div style={{ fontSize: "13px", fontWeight: "600", color: file ? "#86efac" : "#94a3b8", marginBottom: "4px" }}>{label}</div>
       {file ? (
         <div style={{ fontSize: "11px", color: "#22c55e", wordBreak: "break-all" }}>{file.name}</div>
@@ -160,8 +146,7 @@ const ChainProgress = ({ steps, activeStep }) => (
             <div style={{
               flex: 1, height: "2px", margin: "0 6px",
               background: isDone ? "rgba(34,197,94,0.4)" : "rgba(255,255,255,0.06)",
-              marginBottom: "18px",
-              transition: "background 0.3s"
+              marginBottom: "18px", transition: "background 0.3s"
             }} />
           )}
         </div>
@@ -174,14 +159,15 @@ const ChainProgress = ({ steps, activeStep }) => (
 // Main App
 // ---------------------------------------------------------------------------
 export default function PartnershipsNamedInsuredAgent() {
-  // Upload state
-  const [docFile,   setDocFile]   = useState(null);
-  const [sovFile,   setSovFile]   = useState(null);
+  // Input state
+  const [namedInsured, setNamedInsured] = useState("");
+  const [sovFile,      setSovFile]      = useState(null);
+  const nameInputRef = useRef();
 
   // Workflow state
-  const [phase,     setPhase]     = useState("upload"); // upload | running | done | error
-  const [stepMsg,   setStepMsg]   = useState("");
-  const [stepPct,   setStepPct]   = useState(0);
+  const [phase,      setPhase]      = useState("upload"); // upload | running | done | error
+  const [stepMsg,    setStepMsg]    = useState("");
+  const [stepPct,    setStepPct]    = useState(0);
   const [activeStep, setActiveStep] = useState(null);
   const [chainSteps, setChainSteps] = useState([
     { key: "identify",  label: "Named Insured", done: false, error: false },
@@ -191,9 +177,9 @@ export default function PartnershipsNamedInsuredAgent() {
   ]);
 
   // Results state
-  const [identifyResult, setIdentifyResult] = useState(null); // from /api/identify
-  const [chainSummary,   setChainSummary]   = useState(null); // from chain complete event
-  const [outputFile,     setOutputFile]     = useState(null); // { filename, dataUrl }
+  const [identifyResult, setIdentifyResult] = useState(null);
+  const [chainSummary,   setChainSummary]   = useState(null);
+  const [outputFile,     setOutputFile]     = useState(null);
   const [error,          setError]          = useState(null);
   const [activeTab,      setActiveTab]      = useState("named-insured");
 
@@ -210,8 +196,10 @@ export default function PartnershipsNamedInsuredAgent() {
     ]);
   };
 
+  const canRun = namedInsured.trim().length > 0 && sovFile !== null;
+
   const runWorkflow = async () => {
-    if (!docFile || !sovFile) return;
+    if (!canRun) return;
     setPhase("running");
     setError(null);
     setIdentifyResult(null);
@@ -221,37 +209,30 @@ export default function PartnershipsNamedInsuredAgent() {
     setActiveTab("named-insured");
 
     try {
-      // ---- Convert files to base64 -----------------------------------------
-      const [docBase64, sovBase64] = await Promise.all([
-        fileToBase64(docFile),
-        fileToBase64(sovFile),
-      ]);
-
-      // ---- Step 1: Identify named insured ------------------------------------
+      // ---- Step 1: Research the named insured --------------------------------
       setActiveStep("identify");
-      setStepMsg("Identifying named insured from document…");
+      setStepMsg("Researching named insured…");
       setStepPct(5);
 
       const idRes = await fetch("/api/identify", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          docBase64,
-          docMediaType: getMediaType(docFile),
-          docName: docFile.name,
-        }),
+        body: JSON.stringify({ name: namedInsured.trim() }),
       });
 
       if (!idRes.ok) {
         const e = await idRes.json().catch(() => ({ error: `HTTP ${idRes.status}` }));
-        throw new Error(`Named insured identification failed: ${e.error || e.message}`);
+        throw new Error(`Research failed: ${e.error || e.message}`);
       }
 
       const idData = await idRes.json();
       setIdentifyResult(idData);
       markStep("identify", true);
-      setStepMsg(`Named insured: ${idData.named_insured}`);
+      setStepMsg(`Identified: ${idData.named_insured}`);
       setStepPct(25);
+
+      // ---- Convert SOV to base64 -------------------------------------------
+      const sovBase64 = await fileToBase64(sovFile);
 
       // ---- Steps 2-4: Chain via SSE -----------------------------------------
       const chainRes = await fetch("/api/chain", {
@@ -259,7 +240,7 @@ export default function PartnershipsNamedInsuredAgent() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           sovBase64,
-          sovName: sovFile.name,
+          sovName:     sovFile.name,
           namedInsured: idData.named_insured,
           researchJson: idData.research_data || null,
         }),
@@ -274,7 +255,6 @@ export default function PartnershipsNamedInsuredAgent() {
       const reader = chainRes.body.getReader();
       const decoder = new TextDecoder();
       let buf = "", currentEvent = "message";
-
       let finalComplete = null;
       let chainError = null;
 
@@ -297,8 +277,6 @@ export default function PartnershipsNamedInsuredAgent() {
               setActiveStep(step);
               setStepMsg(data.message || "");
               if (data.pct != null) setStepPct(data.pct);
-
-              // Mark previous steps done when we move to next step
               if (step === "naics")     markStep("sov", true);
               if (step === "benchmark") markStep("naics", true);
             } else if (currentEvent === "error") {
@@ -315,12 +293,10 @@ export default function PartnershipsNamedInsuredAgent() {
       if (chainError && !finalComplete) {
         throw new Error(`${chainError.step || "Chain"} step failed: ${chainError.message}`);
       }
-
       if (!finalComplete) {
         throw new Error("Chain completed without output.");
       }
 
-      // Mark benchmark done
       markStep("benchmark", true);
       setStepPct(100);
 
@@ -342,9 +318,13 @@ export default function PartnershipsNamedInsuredAgent() {
     }
   };
 
+  const handleKeyDown = (e) => {
+    if (e.key === "Enter" && canRun && phase !== "running") runWorkflow();
+  };
+
   const reset = () => {
     setPhase("upload");
-    setDocFile(null);
+    setNamedInsured("");
     setSovFile(null);
     setError(null);
     setIdentifyResult(null);
@@ -360,7 +340,7 @@ export default function PartnershipsNamedInsuredAgent() {
     { key: "technical",     label: "Technical Output" },
   ];
 
-  const r = identifyResult;
+  const r  = identifyResult;
   const rd = r?.research_data;
 
   return (
@@ -388,7 +368,7 @@ export default function PartnershipsNamedInsuredAgent() {
 
         {/* Header */}
         <div style={{ textAlign: "center", marginBottom: "40px" }}>
-          <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: "10px", marginBottom: "16px" }}>
+          <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: "10px", marginBottom: "16px", flexWrap: "wrap" }}>
             <div style={{
               display: "inline-flex", alignItems: "center", gap: "8px",
               background: "rgba(99,102,241,0.1)", border: "1px solid rgba(99,102,241,0.25)",
@@ -414,12 +394,12 @@ export default function PartnershipsNamedInsuredAgent() {
             WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent", lineHeight: "1.15"
           }}>Named Insured Agent</h1>
           <p style={{ color: "#64748b", margin: 0, fontSize: "15px" }}>
-            Upload the named insured document and SOV — the full partnerships chain runs automatically.
+            Enter the named insured and upload the SOV — the full partnerships chain runs automatically.
           </p>
         </div>
 
         {/* ------------------------------------------------------------------ */}
-        {/* UPLOAD PHASE                                                        */}
+        {/* UPLOAD / INPUT PHASE                                                */}
         {/* ------------------------------------------------------------------ */}
         {(phase === "upload" || phase === "error") && (
           <div style={{ animation: "fadeUp 0.3s ease" }}>
@@ -427,21 +407,49 @@ export default function PartnershipsNamedInsuredAgent() {
               background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.08)",
               borderRadius: "16px", padding: "28px", marginBottom: "20px"
             }}>
-              <h3 style={{ margin: "0 0 20px 0", fontSize: "13px", fontWeight: "700", color: "#94a3b8", textTransform: "uppercase", letterSpacing: "0.08em" }}>
-                Upload Files
-              </h3>
-              <div style={{ display: "flex", gap: "16px", marginBottom: "20px", flexWrap: "wrap" }}>
+
+              {/* Named insured text input */}
+              <div style={{ marginBottom: "20px" }}>
+                <label style={{ display: "block", fontSize: "12px", fontWeight: "700", color: "#94a3b8", textTransform: "uppercase", letterSpacing: "0.08em", marginBottom: "10px" }}>
+                  Named Insured
+                </label>
+                <div style={{
+                  display: "flex", gap: "12px",
+                  background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.1)",
+                  borderRadius: "12px", padding: "6px",
+                }}>
+                  <input
+                    ref={nameInputRef}
+                    value={namedInsured}
+                    onChange={e => setNamedInsured(e.target.value)}
+                    onKeyDown={handleKeyDown}
+                    placeholder="e.g. Wingstop, Marriott International, Prologis"
+                    disabled={phase === "running"}
+                    style={{
+                      flex: 1, background: "transparent", border: "none", outline: "none",
+                      color: "#e2e8f0", fontSize: "15px", padding: "10px 14px", fontFamily: "inherit"
+                    }}
+                  />
+                </div>
+                <div style={{ marginTop: "8px", display: "flex", gap: "6px", flexWrap: "wrap" }}>
+                  {["Wingstop", "Marriott International", "Prologis", "Domino's Pizza"].map(ex => (
+                    <button key={ex} onClick={() => setNamedInsured(ex)} style={{
+                      background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.08)",
+                      color: "#64748b", padding: "4px 12px", borderRadius: "6px",
+                      fontSize: "11px", cursor: "pointer", fontFamily: "inherit"
+                    }}>{ex}</button>
+                  ))}
+                </div>
+              </div>
+
+              {/* SOV file upload */}
+              <div style={{ marginBottom: "20px" }}>
+                <label style={{ display: "block", fontSize: "12px", fontWeight: "700", color: "#94a3b8", textTransform: "uppercase", letterSpacing: "0.08em", marginBottom: "10px" }}>
+                  Statement of Values (.xlsx)
+                </label>
                 <DropZone
-                  label="Named Insured Document"
-                  hint="PDF, PNG, JPG — SOV cover page or broker submission"
-                  accept=".pdf,.png,.jpg,.jpeg,.webp"
-                  file={docFile}
-                  onFile={setDocFile}
-                  icon="📄"
-                />
-                <DropZone
-                  label="Statement of Values (.xlsx)"
-                  hint="The raw SOV workbook to process through the chain"
+                  label="Drop SOV file here or click to browse"
+                  hint="The raw SOV workbook — passed through the full partnerships chain"
                   accept=".xlsx"
                   file={sovFile}
                   onFile={setSovFile}
@@ -449,18 +457,19 @@ export default function PartnershipsNamedInsuredAgent() {
                 />
               </div>
 
+              {/* Run button */}
               <button
                 onClick={runWorkflow}
-                disabled={!docFile || !sovFile}
+                disabled={!canRun}
                 style={{
                   width: "100%",
-                  background: docFile && sovFile
+                  background: canRun
                     ? "linear-gradient(135deg, #6366f1, #4f46e5)"
                     : "rgba(99,102,241,0.2)",
-                  color: docFile && sovFile ? "#fff" : "#475569",
+                  color: canRun ? "#fff" : "#475569",
                   border: "none", borderRadius: "10px",
                   padding: "14px 24px", fontSize: "15px", fontWeight: "600",
-                  cursor: docFile && sovFile ? "pointer" : "not-allowed",
+                  cursor: canRun ? "pointer" : "not-allowed",
                   fontFamily: "inherit", transition: "opacity 0.2s",
                   display: "flex", alignItems: "center", justifyContent: "center", gap: "10px"
                 }}
@@ -476,6 +485,7 @@ export default function PartnershipsNamedInsuredAgent() {
                 marginBottom: "16px"
               }}>
                 ⚠️ {error}
+                <button onClick={() => setPhase("upload")} style={{ marginLeft: "12px", background: "none", border: "none", color: "#818cf8", cursor: "pointer", fontSize: "13px", fontFamily: "inherit", textDecoration: "underline" }}>Try again</button>
               </div>
             )}
           </div>
@@ -491,7 +501,6 @@ export default function PartnershipsNamedInsuredAgent() {
               borderRadius: "16px", padding: "28px", marginBottom: "20px"
             }}>
               <ChainProgress steps={chainSteps} activeStep={activeStep} />
-
               <div style={{ textAlign: "center" }}>
                 <div style={{ display: "flex", justifyContent: "center", marginBottom: "16px" }}>
                   <div style={{
@@ -532,13 +541,11 @@ export default function PartnershipsNamedInsuredAgent() {
                   <h2 style={{ margin: 0, fontSize: "22px", fontWeight: "700", color: "#fff" }}>
                     {r.named_insured}
                   </h2>
-                  <ConfidenceBadge level={r.confidence} />
                 </div>
                 <div style={{ fontSize: "13px", color: "#64748b", display: "flex", gap: "16px", flexWrap: "wrap" }}>
                   {rd?.company_url && <a href={rd.company_url} target="_blank" rel="noreferrer" style={{ color: "#818cf8", textDecoration: "none" }}>🔗 {rd.company_url}</a>}
                   {rd?.headquarters?.city && <span>📍 {rd.headquarters.city}, {rd.headquarters.state}</span>}
                   {rd?.public_company?.is_public && <span>📈 {rd.public_company.exchange}: {rd.public_company.ticker}</span>}
-                  <span style={{ color: "#475569" }}>📄 {r.source_file}</span>
                 </div>
               </div>
               <button
@@ -549,7 +556,7 @@ export default function PartnershipsNamedInsuredAgent() {
                   color: "#64748b", padding: "8px 14px", borderRadius: "8px", fontSize: "12px",
                   cursor: "pointer", fontFamily: "inherit", fontWeight: "600"
                 }}
-              >New Upload</button>
+              >New Workflow</button>
             </div>
 
             {/* Tabs */}
@@ -562,8 +569,7 @@ export default function PartnershipsNamedInsuredAgent() {
                   color: activeTab === t.key ? "#818cf8" : "#64748b",
                   padding: "8px 4px", borderRadius: "7px", fontSize: "12px", fontWeight: "600",
                   cursor: "pointer", fontFamily: "inherit",
-                  letterSpacing: "0.02em", transition: "all 0.15s",
-                  whiteSpace: "nowrap"
+                  letterSpacing: "0.02em", transition: "all 0.15s", whiteSpace: "nowrap"
                 }}>{t.label}</button>
               ))}
             </div>
@@ -571,28 +577,6 @@ export default function PartnershipsNamedInsuredAgent() {
             {/* ---- Tab 1: Named Insured Results ---- */}
             {activeTab === "named-insured" && (
               <div>
-                {/* Extraction evidence */}
-                <Section title="Identification" icon="🔍">
-                  <div style={{ display: "flex", gap: "12px", flexWrap: "wrap", marginBottom: "14px" }}>
-                    <div style={{ background: "rgba(0,0,0,0.25)", borderRadius: "10px", padding: "12px 16px", border: "1px solid rgba(255,255,255,0.06)" }}>
-                      <div style={{ fontSize: "11px", color: "#64748b", fontWeight: "700", textTransform: "uppercase", letterSpacing: "0.06em", marginBottom: "4px" }}>Confidence</div>
-                      <ConfidenceBadge level={r.confidence} />
-                    </div>
-                    <div style={{ background: "rgba(0,0,0,0.25)", borderRadius: "10px", padding: "12px 16px", border: "1px solid rgba(255,255,255,0.06)", flex: 1 }}>
-                      <div style={{ fontSize: "11px", color: "#64748b", fontWeight: "700", textTransform: "uppercase", letterSpacing: "0.06em", marginBottom: "4px" }}>Evidence</div>
-                      <div style={{ fontSize: "13px", color: "#cbd5e1" }}>{r.evidence}</div>
-                    </div>
-                  </div>
-                  {r.alternative_names?.length > 0 && (
-                    <div style={{ display: "flex", flexWrap: "wrap", gap: "6px" }}>
-                      <span style={{ fontSize: "12px", color: "#64748b" }}>Also found:</span>
-                      {r.alternative_names.map((n, i) => (
-                        <span key={i} style={{ padding: "2px 10px", background: "rgba(255,255,255,0.06)", borderRadius: "20px", fontSize: "12px", color: "#94a3b8", border: "1px solid rgba(255,255,255,0.08)" }}>{n}</span>
-                      ))}
-                    </div>
-                  )}
-                </Section>
-
                 {rd ? (
                   <>
                     <Section title="Business Description" icon="🏢">
@@ -660,29 +644,86 @@ export default function PartnershipsNamedInsuredAgent() {
                         </div>
                       </Section>
                     )}
+
+                    <Section title="Public Company" icon="📈">
+                      <div style={{ display: "flex", gap: "12px", flexWrap: "wrap", marginBottom: rd.public_company?.latest_10k?.available ? "16px" : "0" }}>
+                        {[
+                          { label: "Public",   value: rd.public_company?.is_public ? "Yes" : "No" },
+                          { label: "Exchange", value: rd.public_company?.exchange || "N/A" },
+                          { label: "Ticker",   value: rd.public_company?.ticker   || "N/A" },
+                        ].map((item, i) => (
+                          <div key={i} style={{ background: "rgba(0,0,0,0.25)", borderRadius: "10px", padding: "12px 16px", border: "1px solid rgba(255,255,255,0.06)", minWidth: "90px" }}>
+                            <div style={{ fontSize: "11px", color: "#64748b", fontWeight: "700", textTransform: "uppercase", letterSpacing: "0.06em", marginBottom: "4px" }}>{item.label}</div>
+                            <div style={{ fontSize: "15px", fontWeight: "700", color: "#e2e8f0" }}>{item.value}</div>
+                          </div>
+                        ))}
+                      </div>
+                      {rd.public_company?.latest_10k?.available && (
+                        <div style={{ background: "rgba(0,0,0,0.2)", borderRadius: "10px", padding: "16px", border: "1px solid rgba(255,255,255,0.06)" }}>
+                          <div style={{ display: "flex", gap: "12px", flexWrap: "wrap", marginBottom: "12px" }}>
+                            {[
+                              { label: "Fiscal Year", value: rd.public_company.latest_10k.fiscal_year || "N/A" },
+                              { label: "Revenue",     value: rd.public_company.latest_10k.key_financials?.revenue || "N/A" },
+                              { label: "Net Income",  value: rd.public_company.latest_10k.key_financials?.net_income || "N/A" },
+                            ].map((item, i) => (
+                              <div key={i} style={{ flex: 1, minWidth: "100px" }}>
+                                <div style={{ fontSize: "11px", color: "#64748b", fontWeight: "700", textTransform: "uppercase", letterSpacing: "0.06em", marginBottom: "4px" }}>{item.label}</div>
+                                <div style={{ fontSize: "14px", fontWeight: "700", color: "#e2e8f0" }}>{item.value}</div>
+                              </div>
+                            ))}
+                          </div>
+                          <p style={{ margin: "0 0 10px 0", fontSize: "13px", color: "#cbd5e1", lineHeight: "1.65" }}>{rd.public_company.latest_10k.highlights}</p>
+                          {rd.public_company.latest_10k.sec_filing_url && (
+                            <a href={rd.public_company.latest_10k.sec_filing_url} target="_blank" rel="noreferrer" style={{ color: "#818cf8", fontSize: "13px", textDecoration: "none", fontWeight: "600" }}>
+                              🔗 View SEC Filing →
+                            </a>
+                          )}
+                        </div>
+                      )}
+                    </Section>
+
+                    <Section title="Franchise" icon="🍔">
+                      <div style={{ display: "flex", gap: "12px", flexWrap: "wrap", marginBottom: "14px" }}>
+                        <div style={{ background: "rgba(0,0,0,0.25)", borderRadius: "10px", padding: "12px 16px", border: "1px solid rgba(255,255,255,0.06)" }}>
+                          <div style={{ fontSize: "11px", color: "#64748b", fontWeight: "700", textTransform: "uppercase", letterSpacing: "0.06em", marginBottom: "4px" }}>Franchise Related</div>
+                          <div style={{ fontSize: "15px", fontWeight: "700", color: "#e2e8f0" }}>{rd.franchise?.is_franchise_related ? "Yes" : "No"}</div>
+                        </div>
+                        {rd.franchise?.is_franchise_related && (
+                          <div style={{ background: "rgba(0,0,0,0.25)", borderRadius: "10px", padding: "12px 16px", border: "1px solid rgba(255,255,255,0.06)" }}>
+                            <div style={{ fontSize: "11px", color: "#64748b", fontWeight: "700", textTransform: "uppercase", letterSpacing: "0.06em", marginBottom: "4px" }}>Role</div>
+                            <div style={{ fontSize: "15px", fontWeight: "700", color: "#e2e8f0", textTransform: "capitalize" }}>{rd.franchise?.role}</div>
+                          </div>
+                        )}
+                      </div>
+                      {rd.franchise?.franchise_details && (
+                        <p style={{ margin: "0 0 12px 0", fontSize: "14px", color: "#cbd5e1", lineHeight: "1.65" }}>{rd.franchise.franchise_details}</p>
+                      )}
+                      {rd.franchise?.latest_performance && rd.franchise.latest_performance !== "null" && (
+                        <div style={{ background: "rgba(0,0,0,0.2)", borderRadius: "10px", padding: "14px", border: "1px solid rgba(255,255,255,0.06)" }}>
+                          <div style={{ fontSize: "11px", color: "#64748b", fontWeight: "700", textTransform: "uppercase", letterSpacing: "0.06em", marginBottom: "6px" }}>Latest Performance</div>
+                          <p style={{ margin: 0, fontSize: "13px", color: "#cbd5e1", lineHeight: "1.65" }}>{rd.franchise.latest_performance}</p>
+                        </div>
+                      )}
+                    </Section>
+
+                    <div style={{ marginTop: "20px", display: "flex", alignItems: "center", justifyContent: "space-between", padding: "12px 16px", background: "rgba(255,255,255,0.02)", border: "1px solid rgba(255,255,255,0.06)", borderRadius: "10px", flexWrap: "wrap", gap: "8px" }}>
+                      <span style={{ fontSize: "12px", color: "#475569" }}>
+                        Research confidence: <span style={{ color: rd.data_confidence === "High" ? "#22c55e" : rd.data_confidence === "Medium" ? "#f59e0b" : "#ef4444", fontWeight: "700" }}>{rd.data_confidence}</span>
+                      </span>
+                      {rd.research_timestamp && (
+                        <span style={{ fontSize: "11px", color: "#334155" }}>Researched {new Date(rd.research_timestamp).toLocaleString()}</span>
+                      )}
+                    </div>
+                    {rd.research_notes && (
+                      <p style={{ margin: "12px 0 0 0", fontSize: "12px", color: "#475569", lineHeight: "1.6", padding: "0 4px" }}>
+                        ℹ️ {rd.research_notes}
+                      </p>
+                    )}
                   </>
                 ) : (
                   <Section title="Research" icon="🔍">
-                    <p style={{ margin: 0, color: "#64748b", fontSize: "14px" }}>
-                      {r.research_error || "Research data is not available for this named insured."}
-                    </p>
+                    <p style={{ margin: 0, color: "#64748b", fontSize: "14px" }}>Research data is not available.</p>
                   </Section>
-                )}
-
-                {rd && (
-                  <div style={{ marginTop: "20px", display: "flex", alignItems: "center", justifyContent: "space-between", padding: "12px 16px", background: "rgba(255,255,255,0.02)", border: "1px solid rgba(255,255,255,0.06)", borderRadius: "10px", flexWrap: "wrap", gap: "8px" }}>
-                    <span style={{ fontSize: "12px", color: "#475569" }}>
-                      Research confidence: <span style={{ color: rd.data_confidence === "High" ? "#22c55e" : rd.data_confidence === "Medium" ? "#f59e0b" : "#ef4444", fontWeight: "700" }}>{rd.data_confidence}</span>
-                    </span>
-                    {rd.research_timestamp && (
-                      <span style={{ fontSize: "11px", color: "#334155" }}>Researched {new Date(rd.research_timestamp).toLocaleString()}</span>
-                    )}
-                  </div>
-                )}
-                {rd?.research_notes && (
-                  <p style={{ margin: "12px 0 0 0", fontSize: "12px", color: "#475569", lineHeight: "1.6", padding: "0 4px" }}>
-                    ℹ️ {rd.research_notes}
-                  </p>
                 )}
               </div>
             )}
@@ -690,7 +731,6 @@ export default function PartnershipsNamedInsuredAgent() {
             {/* ---- Tab 2: Partnerships Output ---- */}
             {activeTab === "partnerships" && (
               <div>
-                {/* Download section */}
                 {outputFile && (
                   <div style={{
                     background: "linear-gradient(135deg, rgba(34,197,94,0.1), rgba(16,185,129,0.05))",
@@ -720,26 +760,12 @@ export default function PartnershipsNamedInsuredAgent() {
                   </div>
                 )}
 
-                {/* Summary statistics */}
                 {chainSummary && (
                   <Section title="Processing Summary" icon="📊">
                     <div style={{ display: "flex", gap: "12px", flexWrap: "wrap", marginBottom: "16px" }}>
-                      <StatCard
-                        label="Total Locations"
-                        value={chainSummary.rows ?? "—"}
-                        sub="processed through benchmark"
-                      />
-                      <StatCard
-                        label="FIPS Resolved"
-                        value={`${chainSummary.geocoded ?? "—"} / ${chainSummary.rows ?? "—"}`}
-                        sub={chainSummary.rows > 0 ? `${pct(chainSummary.geocoded, chainSummary.rows)} resolution rate` : ""}
-                        accent
-                      />
-                      <StatCard
-                        label="Unresolved"
-                        value={chainSummary.unresolved ?? "—"}
-                        sub="failed FIPS geocoding"
-                      />
+                      <StatCard label="Total Locations" value={chainSummary.rows ?? "—"} sub="processed through benchmark" />
+                      <StatCard label="FIPS Resolved" value={`${chainSummary.geocoded ?? "—"} / ${chainSummary.rows ?? "—"}`} sub={chainSummary.rows > 0 ? `${pct(chainSummary.geocoded, chainSummary.rows)} resolution rate` : ""} accent />
+                      <StatCard label="Unresolved" value={chainSummary.unresolved ?? "—"} sub="failed FIPS geocoding" />
                     </div>
 
                     {chainSummary.unresolved > 0 && (
@@ -748,21 +774,17 @@ export default function PartnershipsNamedInsuredAgent() {
                           ⚠️ {chainSummary.unresolved} location{chainSummary.unresolved !== 1 ? "s" : ""} could not be geocoded
                         </div>
                         <div style={{ fontSize: "12px", color: "#92400e", lineHeight: "1.6" }}>
-                          These rows will have null FIPS codes in the output workbook. Common causes: non-standard street names, missing address data, or locations outside the US. Open the workbook and check the Geocode Method column for details.
+                          These rows will have null FIPS codes in the output. Check the Geocode Method column in the workbook for details.
                         </div>
                       </div>
                     )}
                   </Section>
                 )}
 
-                {/* Chain steps completed */}
                 <Section title="Chain Execution" icon="🔗">
                   <div style={{ display: "grid", gap: "8px" }}>
                     {chainSteps.map((s) => (
-                      <div key={s.key} style={{
-                        display: "flex", alignItems: "center", gap: "12px",
-                        padding: "10px 14px", background: "rgba(0,0,0,0.2)", borderRadius: "8px"
-                      }}>
+                      <div key={s.key} style={{ display: "flex", alignItems: "center", gap: "12px", padding: "10px 14px", background: "rgba(0,0,0,0.2)", borderRadius: "8px" }}>
                         <div style={{
                           width: "20px", height: "20px", borderRadius: "50%", flexShrink: 0,
                           display: "flex", alignItems: "center", justifyContent: "center",
@@ -773,9 +795,7 @@ export default function PartnershipsNamedInsuredAgent() {
                         }}>
                           {s.error ? "✗" : s.done ? "✓" : "·"}
                         </div>
-                        <div style={{ fontSize: "14px", color: s.error ? "#fca5a5" : s.done ? "#e2e8f0" : "#64748b", fontWeight: s.done ? "500" : "400" }}>
-                          {s.label}
-                        </div>
+                        <div style={{ fontSize: "14px", color: s.error ? "#fca5a5" : s.done ? "#e2e8f0" : "#64748b", fontWeight: s.done ? "500" : "400" }}>{s.label}</div>
                         {s.error && <span style={{ fontSize: "11px", color: "#ef4444", marginLeft: "auto" }}>Failed</span>}
                         {s.done && <span style={{ fontSize: "11px", color: "#22c55e", marginLeft: "auto" }}>Complete</span>}
                       </div>
@@ -793,9 +813,8 @@ export default function PartnershipsNamedInsuredAgent() {
                   borderRadius: "10px", padding: "12px 16px", marginBottom: "16px",
                   fontSize: "12px", color: "#92400e"
                 }}>
-                  ℹ️ This tab contains raw technical output for debugging and integration purposes. It is not part of the primary user flow.
+                  ℹ️ Raw technical output for debugging and integration. Not part of the primary workflow.
                 </div>
-
                 <div style={{ display: "flex", justifyContent: "flex-end", marginBottom: "10px", gap: "8px" }}>
                   <button
                     className="action-btn"
@@ -803,7 +822,6 @@ export default function PartnershipsNamedInsuredAgent() {
                     style={{ background: "rgba(255,255,255,0.07)", border: "1px solid rgba(255,255,255,0.12)", color: "#94a3b8", padding: "7px 14px", borderRadius: "8px", fontSize: "12px", cursor: "pointer", fontFamily: "inherit", fontWeight: "600" }}
                   >Copy JSON</button>
                 </div>
-
                 <pre style={{
                   background: "rgba(0,0,0,0.4)", border: "1px solid rgba(255,255,255,0.07)",
                   borderRadius: "12px", padding: "20px", overflowX: "auto",

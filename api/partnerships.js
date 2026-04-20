@@ -1,13 +1,11 @@
 // api/partnerships.js — Vercel serverless function
 // Unified API route for Step 5 orchestration layer.
-// Accepts both files as base64 in JSON, runs the full chain, returns structured JSON.
+// Accepts named insured name + SOV as base64, runs the full chain, returns structured JSON.
 //
 // POST body (JSON):
 //   {
-//     docBase64: string,      // named insured document (PDF or image)
-//     docMediaType: string,   // e.g. "application/pdf" or "image/png"
-//     docName: string,
-//     sovBase64: string,      // SOV .xlsx file
+//     namedInsured: string,   // named insured business name (text)
+//     sovBase64: string,      // SOV .xlsx file as base64
 //     sovName: string
 //   }
 //
@@ -24,10 +22,10 @@ export default async function handler(req, res) {
     return res.status(405).json({ error: "Method not allowed" });
   }
 
-  const { docBase64, docMediaType, docName, sovBase64, sovName } = req.body || {};
+  const { namedInsured, sovBase64, sovName } = req.body || {};
 
-  if (!docBase64 || !docMediaType || !sovBase64) {
-    return res.status(400).json({ error: "Missing required fields: docBase64, docMediaType, sovBase64" });
+  if (!namedInsured || !sovBase64) {
+    return res.status(400).json({ error: "Missing required fields: namedInsured, sovBase64" });
   }
 
   const baseUrl = process.env.VERCEL_URL
@@ -36,29 +34,22 @@ export default async function handler(req, res) {
 
   const errors = [];
 
-  // ---- Step 1: Identify named insured --------------------------------------
+  // ---- Step 1: Research the named insured ----------------------------------
   let identifyResult;
   try {
     const idRes = await fetch(`${baseUrl}/api/identify`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ docBase64, docMediaType, docName }),
+      body: JSON.stringify({ name: namedInsured }),
     });
     if (!idRes.ok) {
       const e = await idRes.json().catch(() => ({ error: `HTTP ${idRes.status}` }));
-      return res.status(502).json({ error: `Named insured identification failed: ${e.error}` });
+      return res.status(502).json({ error: `Research step failed: ${e.error}` });
     }
     identifyResult = await idRes.json();
   } catch (err) {
-    return res.status(500).json({ error: `Identify step failed: ${err.message}` });
+    return res.status(500).json({ error: `Research step failed: ${err.message}` });
   }
-
-  const namedInsured = identifyResult.named_insured;
-  if (!namedInsured) {
-    return res.status(422).json({ error: "Could not identify named insured from document" });
-  }
-
-  if (identifyResult.research_error) errors.push(identifyResult.research_error);
 
   // ---- Steps 2-4: Chain (call each service directly) -----------------------
   const SOV_URL   = process.env.PARTNERSHIPS_SOV_APP_URL;

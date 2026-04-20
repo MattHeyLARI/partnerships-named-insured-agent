@@ -1,29 +1,11 @@
 // api/identify.js — Vercel serverless function
-// Step 1 of partnerships chain: extract named insured from document, then run research.
+// Step 1 of partnerships chain: research a named insured by name.
 //
 // POST body (JSON):
-//   { docBase64: string, docMediaType: string, docName: string }
+//   { name: string }
 //
 // Returns JSON:
-//   { named_insured, confidence, evidence, research_data, source_file }
-
-const EXTRACTION_PROMPT = `You are an expert insurance analyst. Analyze this document and identify the Named Insured — the entity whose property and/or business interruption exposure is being insured.
-
-This could be a Statement of Values (SOV), broker submission, policy cover sheet, loss run, or similar insurance document. Look for:
-- "Named Insured" or "Insured" labels
-- Company name on the document header or letterhead
-- Policy holder information
-- Account name fields
-
-Return ONLY a valid JSON object with no markdown, no backticks, no preamble:
-{
-  "named_insured": "Exact name as it appears in the document",
-  "confidence": "high | medium | low",
-  "evidence": "One sentence explaining where you found this (e.g. 'Found in the Named Insured field on page 1')",
-  "alternative_names": ["Any alternative or abbreviated names found, if applicable"]
-}
-
-If you cannot identify a named insured with reasonable confidence, set confidence to "low" and explain in evidence.`;
+//   { named_insured, confidence, research_data, ready_for_chain }
 
 const RESEARCH_SYSTEM_PROMPT = `You are an expert insurance underwriting research analyst. When given a business name, you will research and extract specific information relevant to commercial insurance underwriting. Use web search extensively to find accurate, current information.
 
@@ -100,38 +82,14 @@ function parseJsonFromText(text) {
   return JSON.parse(match[0]);
 }
 
-async function callClaude(body) {
-  const apiKey = process.env.ANTHROPIC_API_KEY;
-  const res = await fetch("https://api.anthropic.com/v1/messages", {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      "x-api-key": apiKey,
-      "anthropic-version": "2023-06-01",
-    },
-    body: JSON.stringify(body),
-  });
-
-  if (res.status === 429) {
-    await new Promise(r => setTimeout(r, 10000));
-    return callClaude(body);
-  }
-
-  if (!res.ok) {
-    const detail = await res.text();
-    throw new Error(`Anthropic API ${res.status}: ${detail.substring(0, 200)}`);
-  }
-  return res.json();
-}
-
 export default async function handler(req, res) {
   if (req.method !== "POST") {
     return res.status(405).json({ error: "Method not allowed" });
   }
 
-  const { docBase64, docMediaType, docName } = req.body || {};
-  if (!docBase64 || !docMediaType) {
-    return res.status(400).json({ error: "Missing docBase64 or docMediaType" });
+  const { name } = req.body || {};
+  if (!name || typeof name !== "string" || !name.trim()) {
+    return res.status(400).json({ error: "Missing or invalid name" });
   }
 
   const apiKey = process.env.ANTHROPIC_API_KEY;
@@ -140,79 +98,54 @@ export default async function handler(req, res) {
   }
 
   try {
-    // ---- Step 1: Extract named insured from document -------------------------
-    const isImage = docMediaType.startsWith("image/");
-    const contentBlock = isImage
-      ? { type: "image", source: { type: "base64", media_type: docMediaType, data: docBase64 } }
-      : { type: "document", source: { type: "base64", media_type: "application/pdf", data: docBase64 } };
-
-    const extractionResp = await callClaude({
-      model: "claude-sonnet-4-20250514",
-      max_tokens: 1024,
-      messages: [
-        {
-          role: "user",
-          content: [
-            contentBlock,
-            { type: "text", text: EXTRACTION_PROMPT }
-          ]
-        }
-      ]
+    const anthropicRes = await fetch("https://api.anthropic.com/v1/messages", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "x-api-key": apiKey,
+        "anthropic-version": "2023-06-01",
+        "anthropic-beta": "interleaved-thinking-2025-05-14",
+      },
+      body: JSON.stringify({
+        model: "claude-sonnet-4-20250514",
+        max_tokens: 4000,
+        system: RESEARCH_SYSTEM_PROMPT,
+        tools: [{ type: "web_search_20250305", name: "web_search" }],
+        messages: [
+          {
+            role: "user",
+            content: `Research the following named insured business for commercial insurance underwriting purposes. Extract ALL required data points by searching the web thoroughly:\n\nBusiness Name: ${name.trim()}\n\nReturn a complete JSON object following the exact schema specified. Search for current information including any recent 10-K filings, franchise data, subsidiaries, and business locations.`,
+          },
+        ],
+      }),
     });
 
-    const extractionText = extractionResp.content?.filter(b => b.type === "text").map(b => b.text).join("") || "";
-    let extraction;
-    try {
-      extraction = parseJsonFromText(extractionText);
-    } catch (e) {
-      return res.status(422).json({ error: `Named insured extraction failed: ${e.message}`, raw: extractionText.substring(0, 500) });
+    if (anthropicRes.status === 429) {
+      await new Promise(r => setTimeout(r, 10000));
+      return handler(req, res);
     }
 
-    const namedInsured = extraction.named_insured;
-    if (!namedInsured) {
-      return res.status(422).json({ error: "Could not identify named insured from document", extraction });
+    if (!anthropicRes.ok) {
+      const detail = await anthropicRes.text();
+      return res.status(502).json({ error: `Anthropic API error ${anthropicRes.status}`, detail: detail.substring(0, 200) });
     }
 
-    // ---- Step 2: Research the named insured ---------------------------------
-    const researchResp = await callClaude({
-      model: "claude-sonnet-4-20250514",
-      max_tokens: 4000,
-      system: RESEARCH_SYSTEM_PROMPT,
-      tools: [{ type: "web_search_20250305", name: "web_search" }],
-      messages: [
-        {
-          role: "user",
-          content: `Research the following named insured business for commercial insurance underwriting purposes. Extract ALL required data points by searching the web thoroughly:\n\nBusiness Name: ${namedInsured}\n\nReturn a complete JSON object following the exact schema specified. Search for current information including any recent 10-K filings, franchise data, subsidiaries, and business locations.`
-        }
-      ]
-    });
+    const data = await anthropicRes.json();
+    const textBlocks = data.content?.filter(b => b.type === "text") || [];
+    const fullText = textBlocks.map(b => b.text).join("");
 
-    const researchText = researchResp.content?.filter(b => b.type === "text").map(b => b.text).join("") || "";
     let researchData;
     try {
-      researchData = parseJsonFromText(researchText);
+      researchData = parseJsonFromText(fullText);
     } catch (e) {
-      // Research failed but we still have the named insured — return partial result
-      return res.status(200).json({
-        named_insured: namedInsured,
-        confidence: extraction.confidence,
-        evidence: extraction.evidence,
-        alternative_names: extraction.alternative_names || [],
-        source_file: docName || "uploaded document",
-        ready_for_chain: true,
-        research_data: null,
-        research_error: `Research phase failed: ${e.message}`,
-      });
+      return res.status(422).json({ error: `Research parse failed: ${e.message}`, raw: fullText.substring(0, 500) });
     }
 
     return res.status(200).json({
-      named_insured: namedInsured,
-      confidence: extraction.confidence,
-      evidence: extraction.evidence,
-      alternative_names: extraction.alternative_names || [],
-      source_file: docName || "uploaded document",
+      named_insured:   name.trim(),
+      confidence:      researchData.data_confidence?.toLowerCase() || "medium",
       ready_for_chain: true,
-      research_data: researchData,
+      research_data:   researchData,
     });
 
   } catch (err) {
@@ -223,5 +156,5 @@ export default async function handler(req, res) {
 
 export const config = {
   maxDuration: 300,
-  api: { bodyParser: { sizeLimit: '20mb' } },
+  api: { bodyParser: { sizeLimit: '1mb' } },
 };
