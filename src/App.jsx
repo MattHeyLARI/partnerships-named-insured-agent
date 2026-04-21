@@ -450,14 +450,14 @@ export default function PartnershipsNamedInsuredAgent() {
             fontSize: "12px", color: C.w60, fontWeight: "500",
             letterSpacing: "0.06em", textTransform: "uppercase", fontFamily: F.body,
           }}>
-            ⚡ AI-Powered Underwriting Intelligence
+            ⚡ BI Underwriting Intelligence
           </div>
           <h1 style={{
             fontSize: "clamp(28px, 4vw, 48px)", fontWeight: "700", margin: "0 0 12px 0",
             fontFamily: F.heading, color: C.w100, lineHeight: "1.15",
-          }}>Named Insured Agent</h1>
+          }}>LARI Automated Analysis Tool</h1>
           <p style={{ color: C.w60, margin: 0, fontSize: "16px", fontFamily: F.body }}>
-            Enter the named insured and upload the SOV — the full partnerships chain runs automatically.
+            Enter the named insured and upload the SOV — produce business interruption intel and LARI analysis workbook.
           </p>
         </div>
 
