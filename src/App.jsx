@@ -859,14 +859,14 @@ export default function PartnershipsNamedInsuredAgent() {
                 {chainSummary && (
                   <Section title="Processing Summary" icon="📊">
                     <div style={{ display: "flex", gap: "16px", flexWrap: "wrap", marginBottom: "16px" }}>
-                      <StatCard label="Total Locations" value={chainSummary.rows ?? "—"} sub="processed through benchmark" />
-                      <StatCard label="FIPS Resolved" value={`${chainSummary.geocoded ?? "—"} / ${chainSummary.rows ?? "—"}`} sub={chainSummary.rows > 0 ? `${pct(chainSummary.geocoded, chainSummary.rows)} resolution rate` : ""} accent />
-                      <StatCard label="Unresolved" value={chainSummary.unresolved ?? "—"} sub="failed FIPS geocoding" />
+                      <StatCard label="Total Locations" value={chainSummary.location_count ?? "—"} sub="processed through benchmark" />
+                      <StatCard label="FIPS Resolved" value={`${chainSummary.fips_resolved ?? "—"} / ${chainSummary.location_count ?? "—"}`} sub={chainSummary.location_count > 0 ? `${pct(chainSummary.fips_resolved, chainSummary.location_count)} resolution rate` : ""} accent />
+                      <StatCard label="Unresolved" value={chainSummary.fips_failed_count ?? "—"} sub="failed FIPS geocoding" />
                     </div>
-                    {chainSummary.unresolved > 0 && (
+                    {chainSummary.fips_failed_count > 0 && (
                       <div style={{ background: `${C.orange}12`, border: `1px solid ${C.orange}44`, borderRadius: "10px", padding: "14px 16px" }}>
                         <div style={{ fontSize: "13px", color: C.orange, fontWeight: "700", marginBottom: "6px", fontFamily: F.body }}>
-                          ⚠️ {chainSummary.unresolved} location{chainSummary.unresolved !== 1 ? "s" : ""} could not be geocoded
+                          ⚠️ {chainSummary.fips_failed_count} location{chainSummary.fips_failed_count !== 1 ? "s" : ""} could not be geocoded
                         </div>
                         <div style={{ fontSize: "13px", color: C.w60, lineHeight: "1.6", fontFamily: F.body }}>
                           These rows will have null FIPS codes in the output. Check the Geocode Method column in the workbook for details.
