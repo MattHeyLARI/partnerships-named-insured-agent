@@ -684,13 +684,19 @@ export default function PartnershipsNamedInsuredAgent() {
                     </Section>
 
                     <Section title="Special Industry Flags" icon="🚩">
-                      <div style={{ display: "flex", gap: "10px", flexWrap: "wrap" }}>
-                        <Flag active={rd.special_industry_flags?.is_hotel} label="Hotel / Hospitality" />
-                        <Flag active={rd.special_industry_flags?.is_reit_or_real_estate_vehicle} label="REIT / Real Estate Vehicle" />
-                        <Flag active={rd.special_industry_flags?.is_senior_living} label="Senior Living" />
-                      </div>
-                      {rd.special_industry_flags?.industry_notes && (
-                        <p style={{ margin: "12px 0 0 0", fontSize: "13px", color: C.w60, lineHeight: "1.6", fontFamily: F.body }}>{rd.special_industry_flags.industry_notes}</p>
+                      {(rd.special_industry_flags?.is_hotel || rd.special_industry_flags?.is_reit_or_real_estate_vehicle || rd.special_industry_flags?.is_senior_living) ? (
+                        <>
+                          <div style={{ display: "flex", gap: "10px", flexWrap: "wrap" }}>
+                            {rd.special_industry_flags?.is_hotel && <Flag active label="Hotel / Hospitality" />}
+                            {rd.special_industry_flags?.is_reit_or_real_estate_vehicle && <Flag active label="REIT / Real Estate Vehicle" />}
+                            {rd.special_industry_flags?.is_senior_living && <Flag active label="Senior Living" />}
+                          </div>
+                          {rd.special_industry_flags?.industry_notes && (
+                            <p style={{ margin: "12px 0 0 0", fontSize: "13px", color: C.w60, lineHeight: "1.6", fontFamily: F.body }}>{rd.special_industry_flags.industry_notes}</p>
+                          )}
+                        </>
+                      ) : (
+                        <p style={{ margin: 0, fontSize: "14px", color: C.w60, fontFamily: F.body }}>None</p>
                       )}
                     </Section>
 
