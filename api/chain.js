@@ -14,82 +14,6 @@
 //   error events:    { step, message }
 //   complete events: { filename, data (base64), summary, workbook_metrics }
 
-import * as XLSX from 'xlsx';
-
-// ── Column indices (0-based) in the Benchmark Comparison sheet ──────────────
-const COL_NAICS  = 11; // L  — Modelled NAICS
-const COL_BI     = 14; // O  — BI value
-const COL_MSALES = 15; // P  — LARI modelled sales
-const COL_BSALES = 29; // AD — Benchmark sales
-const COL_BBIV   = 30; // AE — Benchmark BIV
-const COL_DIFF   = 38; // AM — BIV difference
-const COL_PCTD   = 46; // AU — BIV % difference
-
-function extractWorkbookMetrics(base64Data) {
-  try {
-    const buf = Buffer.from(base64Data, 'base64');
-    const wb  = XLSX.read(buf, { type: 'buffer' });
-
-    // Find the Benchmark Comparison sheet (name includes client name as prefix)
-    const sheetName = wb.SheetNames.find(n => n.endsWith('Benchmark Comparison'));
-    if (!sheetName) return null;
-
-    const rows = XLSX.utils.sheet_to_json(wb.Sheets[sheetName], { header: 1, defval: null });
-    if (rows.length < 2) return null;
-
-    // Skip header row; skip entirely blank rows
-    const data = rows.slice(1).filter(r => r.some(c => c != null && c !== ''));
-
-    const num = (r, idx) => {
-      const v = r[idx];
-      const n = parseFloat(v);
-      return (!isNaN(n) && v !== null && v !== '') ? n : null;
-    };
-
-    const sum = vals => vals.filter(v => v !== null).reduce((a, b) => a + b, 0);
-    const avg = vals => {
-      const valid = vals.filter(v => v !== null);
-      return valid.length ? sum(valid) / valid.length : null;
-    };
-
-    const naicsVals  = data.map(r => r[COL_NAICS]).filter(v => v != null && v !== '');
-    const biVals     = data.map(r => num(r, COL_BI));
-    const mSalesVals = data.map(r => num(r, COL_MSALES));
-    const bSalesVals = data.map(r => num(r, COL_BSALES));
-    const bBivVals   = data.map(r => num(r, COL_BBIV));
-    const diffVals   = data.map(r => num(r, COL_DIFF));
-    const pctVals    = data.map(r => num(r, COL_PCTD));
-
-    // Primary NAICS = most frequent value in column L
-    const counts = {};
-    naicsVals.forEach(n => { counts[n] = (counts[n] || 0) + 1; });
-    const primaryNaics = Object.entries(counts).sort((a, b) => b[1] - a[1])[0]?.[0] ?? null;
-
-    return {
-      sov: {
-        total_locations:  data.length,
-        total_bi_value:   sum(biVals),
-        avg_bi_value:     avg(biVals),
-        primary_naics:    primaryNaics,
-        unique_naics:     new Set(naicsVals).size,
-      },
-      analysis: {
-        total_modeled_sales:    sum(mSalesVals),
-        total_benchmark_sales:  sum(bSalesVals),
-        total_benchmark_biv:    sum(bBivVals),
-        avg_benchmark_biv:      avg(bBivVals),
-        total_difference:       sum(diffVals),
-        avg_difference:         avg(diffVals),
-        pct_difference:         avg(pctVals),
-        high_risk_locations:    pctVals.filter(v => v !== null && v < -0.5).length,
-      },
-    };
-  } catch (err) {
-    console.error('[chain] workbook metrics extraction failed:', err.message);
-    return null;
-  }
-}
-
 function sseWrite(res, event, data) {
   res.write(`event: ${event}\ndata: ${JSON.stringify(data)}\n\n`);
 }
@@ -284,9 +208,6 @@ export default async function handler(req, res) {
     const safeNamed = namedInsured.replace(/[^a-zA-Z0-9 _-]/g, "").trim();
     const finalFilename = `${safeNamed}_LARI_benchmark.xlsx`;
 
-    // ---- Extract workbook metrics -------------------------------------------
-    const workbookMetrics = extractWorkbookMetrics(completePayload.data);
-
     // ---- Emit complete -------------------------------------------------------
     const summary = completePayload.summary || {};
     sseWrite(res, "complete", {
@@ -298,7 +219,7 @@ export default async function handler(req, res) {
         fips_failed_count:     summary.unresolved || 0,
         fips_resolution_rate:  summary.rows > 0 ? (summary.geocoded / summary.rows) : 0,
       },
-      workbook_metrics: workbookMetrics,
+      workbook_metrics: completePayload.workbook_metrics ?? null,
     });
 
     console.log(`[chain] Complete. Output: ${finalFilename}`);
