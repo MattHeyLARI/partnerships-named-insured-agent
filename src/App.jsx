@@ -390,8 +390,8 @@ export default function PartnershipsNamedInsuredAgent() {
   };
 
   const tabs = [
-    { key: "named-insured", label: "Named Insured Results" },
-    { key: "partnerships",  label: "Partnerships Output"   },
+    { key: "named-insured", label: "Insured Business Summary" },
+    { key: "partnerships",  label: "Analysis Output"        },
     { key: "technical",     label: "Technical Output"      },
   ];
 
@@ -643,7 +643,7 @@ export default function PartnershipsNamedInsuredAgent() {
               ))}
             </div>
 
-            {/* ── Tab 1: Named Insured Results ── */}
+            {/* ── Tab 1: Insured Business Summary ── */}
             {activeTab === "named-insured" && (
               <div>
                 {rd ? (
@@ -824,7 +824,7 @@ export default function PartnershipsNamedInsuredAgent() {
               </div>
             )}
 
-            {/* ── Tab 2: Partnerships Output ── */}
+            {/* ── Tab 2: Analysis Output ── */}
             {activeTab === "partnerships" && (
               <div>
                 {/* Download — orange highlighted card */}
@@ -857,7 +857,7 @@ export default function PartnershipsNamedInsuredAgent() {
 
                 {/* Summary statistics */}
                 {chainSummary && (
-                  <Section title="Processing Summary" icon="📊">
+                  <Section title="Geocoding Summary" icon="📊">
                     <div style={{ display: "flex", gap: "16px", flexWrap: "wrap", marginBottom: "16px" }}>
                       <StatCard label="Total Locations" value={chainSummary.location_count ?? "—"} sub="processed through benchmark" />
                       <StatCard label="FIPS Resolved" value={`${chainSummary.fips_resolved ?? "—"} / ${chainSummary.location_count ?? "—"}`} sub={chainSummary.location_count > 0 ? `${pct(chainSummary.fips_resolved, chainSummary.location_count)} resolution rate` : ""} accent />
