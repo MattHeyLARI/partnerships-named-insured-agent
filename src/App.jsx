@@ -150,17 +150,15 @@ const Flag = ({ active, label }) => (
   </div>
 );
 
-// Standard card panel (light-blue style). accentTitle uses orange title + left border.
-const Section = ({ title, children, icon, accentTitle }) => (
+// Standard card panel (light-blue style)
+const Section = ({ title, children, icon }) => (
   <div style={{
     background: C.cardStd, border: `1px solid ${C.cardStdBorder}`,
     borderRadius: "16px", padding: "20px", marginBottom: "16px",
-    ...(accentTitle ? { borderLeft: `3px solid ${C.orange}` } : {}),
   }}>
     <h3 style={{
       margin: "0 0 14px 0", fontSize: "13px", fontWeight: "600",
-      color: accentTitle ? C.orange : C.lightBlue,
-      textTransform: "uppercase", letterSpacing: "0.08em",
+      color: C.lightBlue, textTransform: "uppercase", letterSpacing: "0.08em",
       display: "flex", alignItems: "center", gap: "8px",
       fontFamily: F.heading,
     }}>
@@ -169,54 +167,6 @@ const Section = ({ title, children, icon, accentTitle }) => (
     {children}
   </div>
 );
-
-// Loss event relevance → colour mapping
-const LOSS_RELEVANCE = {
-  high:   { color: C.orange,    label: "High Relevance"   },
-  medium: { color: C.lightBlue, label: "Medium Relevance" },
-  low:    { color: C.lavender,  label: "Low Relevance"    },
-};
-const LOSS_EVENT_TYPES = {
-  fire:                "🔥 Fire",
-  flood:               "🌊 Flood",
-  storm:               "⛈️ Storm",
-  earthquake:          "🌎 Earthquake",
-  theft:               "🔒 Theft",
-  equipment_breakdown: "⚙️ Equipment Breakdown",
-  pandemic:            "🦠 Pandemic",
-  other:               "📋 Other",
-};
-const LossEventCard = ({ event }) => {
-  const rel = LOSS_RELEVANCE[event.relevance?.toLowerCase()] || { color: C.w40, label: event.relevance || "Unknown" };
-  const typeLabel = LOSS_EVENT_TYPES[event.event_type?.toLowerCase()] || `📋 ${event.event_type || "Unknown"}`;
-  return (
-    <div style={{
-      background: C.cardStd, border: `1px solid ${C.cardStdBorder}`,
-      borderRadius: "12px", padding: "16px 20px", marginBottom: "10px",
-    }}>
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: "8px", flexWrap: "wrap", gap: "8px" }}>
-        <div style={{ display: "flex", gap: "10px", alignItems: "center", flexWrap: "wrap" }}>
-          <span style={{ fontWeight: "600", fontSize: "14px", fontFamily: F.body, color: C.w100 }}>{event.date}</span>
-          <span style={{
-            padding: "2px 10px", borderRadius: "20px", fontSize: "11px", fontWeight: "700",
-            color: rel.color, border: `1px solid ${rel.color}55`, background: `${rel.color}18`,
-            fontFamily: F.body, textTransform: "uppercase", letterSpacing: "0.04em",
-          }}>{rel.label}</span>
-        </div>
-        <span style={{ fontSize: "12px", color: C.w60, fontFamily: F.body, whiteSpace: "nowrap" }}>{typeLabel}</span>
-      </div>
-      {event.location && (
-        <div style={{ fontSize: "12px", color: C.lightBlue, fontFamily: F.body, marginBottom: "6px" }}>📍 {event.location}</div>
-      )}
-      <p style={{ margin: "0 0 10px 0", fontSize: "14px", color: C.w80, lineHeight: "1.65", fontFamily: F.body }}>{event.description}</p>
-      {event.source_url && (
-        <a href={event.source_url} target="_blank" rel="noopener noreferrer" style={{
-          color: C.lightBlue, fontSize: "12px", fontFamily: F.body, fontWeight: "600", textDecoration: "none",
-        }}>🔗 {event.source_name || "Source"} →</a>
-      )}
-    </div>
-  );
-};
 
 const StatCard = ({ label, value, sub, accent }) => (
   <div style={{
@@ -326,7 +276,6 @@ export default function PartnershipsNamedInsuredAgent() {
     { key: "sov",       label: "SOV",           done: false, error: false },
     { key: "naics",     label: "NAICS",         done: false, error: false },
     { key: "benchmark", label: "Benchmark",     done: false, error: false },
-    { key: "loss",      label: "Loss Events",   done: false, error: false },
   ]);
 
   // Results state
@@ -337,13 +286,6 @@ export default function PartnershipsNamedInsuredAgent() {
   const [error,          setError]          = useState(null);
   const [activeTab,      setActiveTab]      = useState("named-insured");
 
-  // Loss event research state
-  const [lossEventsData,   setLossEventsData]   = useState(null);   // { loss_events, loss_event_search }
-  const [lossEventsPhase,  setLossEventsPhase]  = useState("idle"); // idle | loading | done | error
-  const [lossEventsError,  setLossEventsError]  = useState(null);
-  // Ref used to invalidate in-flight searches when user resets
-  const lossEventSearchRef = useRef(0);
-
   const markStep = (key, done, isError = false) =>
     setChainSteps(prev => prev.map(s => s.key === key ? { ...s, done, error: isError } : s));
 
@@ -352,7 +294,6 @@ export default function PartnershipsNamedInsuredAgent() {
     { key: "sov",       label: "SOV",           done: false, error: false },
     { key: "naics",     label: "NAICS",         done: false, error: false },
     { key: "benchmark", label: "Benchmark",     done: false, error: false },
-    { key: "loss",      label: "Loss Events",   done: false, error: false },
   ]);
 
   const canRun = namedInsured.trim().length > 0 && sovFile !== null;
@@ -360,9 +301,7 @@ export default function PartnershipsNamedInsuredAgent() {
   const runWorkflow = async () => {
     if (!canRun) return;
     setPhase("running"); setError(null); setIdentifyResult(null);
-    setChainSummary(null); setWorkbookMetrics(null); setOutputFile(null);
-    setLossEventsData(null); setLossEventsPhase("idle"); setLossEventsError(null);
-    resetSteps(); setActiveTab("named-insured");
+    setChainSummary(null); setWorkbookMetrics(null); setOutputFile(null); resetSteps(); setActiveTab("named-insured");
 
     try {
       setActiveStep("identify"); setStepMsg("Researching named insured…"); setStepPct(5);
@@ -378,21 +317,6 @@ export default function PartnershipsNamedInsuredAgent() {
       const idData = await idRes.json();
       setIdentifyResult(idData); markStep("identify", true);
       setStepMsg(`Identified: ${idData.named_insured}`); setStepPct(25);
-
-      // Start loss event research in parallel with chain — awaited before report renders
-      lossEventSearchRef.current += 1;
-      const thisWorkflow = lossEventSearchRef.current;
-      setLossEventsPhase("loading"); setLossEventsData(null); setLossEventsError(null);
-      const lossEventsPromise = fetch("/api/loss-events", {
-        method: "POST", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          name: idData.named_insured,
-          url:  idData.research_data?.company_url || null,
-        }),
-      }).then(r => {
-        if (!r.ok) throw new Error(`HTTP ${r.status}`);
-        return r.json();
-      }).catch(err => ({ _fetchError: err.message }));
 
       const sovBase64 = await fileToBase64(sovFile);
 
@@ -443,7 +367,7 @@ export default function PartnershipsNamedInsuredAgent() {
       if (chainError && !finalComplete) throw new Error(`${chainError.step || "Chain"} step failed: ${chainError.message}`);
       if (!finalComplete) throw new Error("Chain completed without output.");
 
-      markStep("benchmark", true);
+      markStep("benchmark", true); setStepPct(100);
 
       const binStr = atob(finalComplete.data);
       const bytes = new Uint8Array(binStr.length);
@@ -452,22 +376,6 @@ export default function PartnershipsNamedInsuredAgent() {
       setOutputFile({ filename: finalComplete.filename, dataUrl: URL.createObjectURL(blob) });
       setChainSummary(finalComplete.summary);
       setWorkbookMetrics(finalComplete.workbook_metrics ?? null);
-
-      // Await loss event research before showing the report
-      setActiveStep("loss"); setStepMsg("Completing loss event research…"); setStepPct(98);
-      const lossResult = await lossEventsPromise;
-      if (lossEventSearchRef.current !== thisWorkflow) return; // user reset mid-run
-      if (lossResult?._fetchError || lossResult?.loss_event_search?.error) {
-        setLossEventsError(lossResult._fetchError || lossResult.loss_event_search?.error);
-        setLossEventsPhase("error");
-        markStep("loss", false, true);
-      } else {
-        setLossEventsData(lossResult);
-        setLossEventsPhase("done");
-        markStep("loss", true);
-      }
-
-      setStepPct(100);
       setPhase("done"); setActiveTab("partnerships");
 
     } catch (err) {
@@ -478,10 +386,8 @@ export default function PartnershipsNamedInsuredAgent() {
   const handleKeyDown = (e) => { if (e.key === "Enter" && canRun && phase !== "running") runWorkflow(); };
 
   const reset = () => {
-    lossEventSearchRef.current += 1; // invalidate any in-flight loss event search
     setPhase("upload"); setNamedInsured(""); setSovFile(null); setError(null);
     setIdentifyResult(null); setChainSummary(null); setWorkbookMetrics(null); setOutputFile(null);
-    setLossEventsData(null); setLossEventsPhase("idle"); setLossEventsError(null);
     setActiveTab("named-insured"); resetSteps();
   };
 
@@ -747,62 +653,6 @@ export default function PartnershipsNamedInsuredAgent() {
                     <Section title="Business Description" icon="🏢">
                       <p style={{ margin: 0, lineHeight: "1.7", fontSize: "15px", color: C.w80, fontFamily: F.body }}>{rd.business_description}</p>
                     </Section>
-
-                    {/* ── Loss Event Research ── */}
-                    {lossEventsPhase !== "idle" && (() => {
-                      const relevanceOrder = { high: 0, medium: 1, low: 2 };
-                      const parseEventDate = s => {
-                        if (!s || s === "Unknown") return 0;
-                        const d = new Date(s);
-                        if (!isNaN(d.getTime())) return d.getTime();
-                        const m = s.match(/^(\d{4})-(\d{2})$/);
-                        if (m) return new Date(+m[1], +m[2] - 1).getTime();
-                        const y = s.match(/^(\d{4})$/);
-                        if (y) return new Date(+y[1], 0).getTime();
-                        return 0;
-                      };
-                      const sortedEvents = lossEventsData?.loss_events
-                        ? [...lossEventsData.loss_events].sort((a, b) => {
-                            const rDiff = (relevanceOrder[a.relevance] ?? 3) - (relevanceOrder[b.relevance] ?? 3);
-                            return rDiff !== 0 ? rDiff : parseEventDate(b.date) - parseEventDate(a.date);
-                          })
-                        : [];
-                      const meta = lossEventsData?.loss_event_search;
-                      return (
-                        <Section title="Loss Event Research" icon="🔎" accentTitle>
-                          {lossEventsPhase === "loading" && (
-                            <div style={{ display: "flex", alignItems: "center", gap: "12px", padding: "8px 0" }}>
-                              <div style={{
-                                width: "18px", height: "18px", border: `2px solid ${C.orange}`,
-                                borderTopColor: "transparent", borderRadius: "50%",
-                                animation: "spin 0.8s linear infinite", flexShrink: 0,
-                              }} />
-                              <span style={{ fontSize: "14px", color: C.w60, fontFamily: F.body }}>
-                                Searching for publicly reported loss events…
-                              </span>
-                            </div>
-                          )}
-
-                          {lossEventsPhase === "error" && (
-                            <span style={{ fontSize: "14px", color: C.w60, fontFamily: F.body }}>
-                              Search unavailable — please retry.
-                            </span>
-                          )}
-
-                          {lossEventsPhase === "done" && (
-                            <>
-                              {sortedEvents.length > 0 ? (
-                                sortedEvents.map((ev, i) => <LossEventCard key={i} event={ev} />)
-                              ) : (
-                                <p style={{ margin: 0, fontSize: "14px", color: C.w60, fontFamily: F.body }}>
-                                  None found.
-                                </p>
-                              )}
-                            </>
-                          )}
-                        </Section>
-                      );
-                    })()}
 
                     <Section title="Income Generation & BI Risk" icon="💰">
                       <p style={{ margin: "0 0 14px 0", lineHeight: "1.7", fontSize: "15px", color: C.w80, fontFamily: F.body }}>{rd.income_generation?.summary}</p>

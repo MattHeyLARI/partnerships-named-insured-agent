@@ -51,17 +51,6 @@ export default async function handler(req, res) {
     return res.status(500).json({ error: `Research step failed: ${err.message}` });
   }
 
-  // ---- Loss event research — runs in parallel with chain -------------------
-  const lossEventsPromise = fetch(`${baseUrl}/api/loss-events`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({
-      name: namedInsured,
-      url:  identifyResult.research_data?.company_url || null,
-    }),
-    signal: AbortSignal.timeout(110_000),
-  }).then(r => r.ok ? r.json() : null).catch(() => null);
-
   // ---- Steps 2-4: Chain (call each service directly) -----------------------
   const SOV_URL   = process.env.PARTNERSHIPS_SOV_APP_URL;
   const NAICS_URL = process.env.PARTNERSHIPS_NAICS_APP_URL;
@@ -159,9 +148,6 @@ export default async function handler(req, res) {
     return res.status(502).json({ error: "Benchmark stream ended without a complete event", errors });
   }
 
-  // ---- Await loss events (was running in parallel with chain) --------------
-  const lossEventsResult = await lossEventsPromise;
-
   // ---- Build response ------------------------------------------------------
   const safeNamed = namedInsured.replace(/[^a-zA-Z0-9 _-]/g, "").trim();
   const outputFilename = `${safeNamed}_LARI_benchmark.xlsx`;
@@ -172,15 +158,13 @@ export default async function handler(req, res) {
     confidence:       identifyResult.confidence,
     source_file:      identifyResult.source_file,
     ready_for_chain:  true,
-    loss_events:            lossEventsResult?.loss_events            || [],
-    loss_event_search:      lossEventsResult?.loss_event_search      || null,
     chain_output: {
       output_file:          outputFilename,
       output_data_base64:   benchComplete.data,
       location_count:       summary.rows       || 0,
       fips_resolution_rate: summary.rows > 0 ? (summary.geocoded / summary.rows) : 0,
-      fips_failed:          [],
-      naics_distribution:   {},
+      fips_failed:          [],     // detailed list not available from benchmark summary
+      naics_distribution:   {},     // not available from chain output currently
       processing_errors:    errors,
     },
     metadata: identifyResult.research_data || {},
