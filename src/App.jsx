@@ -326,6 +326,7 @@ export default function PartnershipsNamedInsuredAgent() {
     { key: "sov",       label: "SOV",           done: false, error: false },
     { key: "naics",     label: "NAICS",         done: false, error: false },
     { key: "benchmark", label: "Benchmark",     done: false, error: false },
+    { key: "loss",      label: "Loss Events",   done: false, error: false },
   ]);
 
   // Results state
@@ -351,6 +352,7 @@ export default function PartnershipsNamedInsuredAgent() {
     { key: "sov",       label: "SOV",           done: false, error: false },
     { key: "naics",     label: "NAICS",         done: false, error: false },
     { key: "benchmark", label: "Benchmark",     done: false, error: false },
+    { key: "loss",      label: "Loss Events",   done: false, error: false },
   ]);
 
   const canRun = namedInsured.trim().length > 0 && sovFile !== null;
@@ -377,11 +379,11 @@ export default function PartnershipsNamedInsuredAgent() {
       setIdentifyResult(idData); markStep("identify", true);
       setStepMsg(`Identified: ${idData.named_insured}`); setStepPct(25);
 
-      // Fire loss event research in parallel with chain (non-blocking)
+      // Start loss event research in parallel with chain — awaited before report renders
       lossEventSearchRef.current += 1;
-      const thisSearch = lossEventSearchRef.current;
+      const thisWorkflow = lossEventSearchRef.current;
       setLossEventsPhase("loading"); setLossEventsData(null); setLossEventsError(null);
-      fetch("/api/loss-events", {
+      const lossEventsPromise = fetch("/api/loss-events", {
         method: "POST", headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           name: idData.named_insured,
@@ -390,15 +392,7 @@ export default function PartnershipsNamedInsuredAgent() {
       }).then(r => {
         if (!r.ok) throw new Error(`HTTP ${r.status}`);
         return r.json();
-      }).then(data => {
-        if (lossEventSearchRef.current !== thisSearch) return; // reset was called
-        setLossEventsData(data);
-        setLossEventsPhase("done");
-      }).catch(err => {
-        if (lossEventSearchRef.current !== thisSearch) return;
-        setLossEventsError(err.message);
-        setLossEventsPhase("error");
-      });
+      }).catch(err => ({ _fetchError: err.message }));
 
       const sovBase64 = await fileToBase64(sovFile);
 
@@ -449,7 +443,7 @@ export default function PartnershipsNamedInsuredAgent() {
       if (chainError && !finalComplete) throw new Error(`${chainError.step || "Chain"} step failed: ${chainError.message}`);
       if (!finalComplete) throw new Error("Chain completed without output.");
 
-      markStep("benchmark", true); setStepPct(100);
+      markStep("benchmark", true);
 
       const binStr = atob(finalComplete.data);
       const bytes = new Uint8Array(binStr.length);
@@ -458,6 +452,22 @@ export default function PartnershipsNamedInsuredAgent() {
       setOutputFile({ filename: finalComplete.filename, dataUrl: URL.createObjectURL(blob) });
       setChainSummary(finalComplete.summary);
       setWorkbookMetrics(finalComplete.workbook_metrics ?? null);
+
+      // Await loss event research before showing the report
+      setActiveStep("loss"); setStepMsg("Completing loss event research…"); setStepPct(98);
+      const lossResult = await lossEventsPromise;
+      if (lossEventSearchRef.current !== thisWorkflow) return; // user reset mid-run
+      if (lossResult?._fetchError || lossResult?.loss_event_search?.error) {
+        setLossEventsError(lossResult._fetchError || lossResult.loss_event_search?.error);
+        setLossEventsPhase("error");
+        markStep("loss", false, true);
+      } else {
+        setLossEventsData(lossResult);
+        setLossEventsPhase("done");
+        markStep("loss", true);
+      }
+
+      setStepPct(100);
       setPhase("done"); setActiveTab("partnerships");
 
     } catch (err) {
@@ -774,9 +784,9 @@ export default function PartnershipsNamedInsuredAgent() {
                           )}
 
                           {lossEventsPhase === "error" && (
-                            <div style={{ color: "#fca5a5", fontSize: "14px", fontFamily: F.body }}>
-                              ⚠️ Loss event search unavailable — please retry. {lossEventsError && `(${lossEventsError})`}
-                            </div>
+                            <span style={{ fontSize: "14px", color: C.w60, fontFamily: F.body }}>
+                              Search unavailable — please retry.
+                            </span>
                           )}
 
                           {lossEventsPhase === "done" && (
@@ -784,30 +794,9 @@ export default function PartnershipsNamedInsuredAgent() {
                               {sortedEvents.length > 0 ? (
                                 sortedEvents.map((ev, i) => <LossEventCard key={i} event={ev} />)
                               ) : (
-                                <div style={{
-                                  background: C.cardMuted, border: `1px solid ${C.cardMutedBorder}`,
-                                  borderRadius: "12px", padding: "16px 20px",
-                                }}>
-                                  <p style={{ margin: 0, fontSize: "14px", color: C.w60, fontFamily: F.body }}>
-                                    No publicly reported property or business interruption loss events identified for {r.named_insured}.
-                                  </p>
-                                </div>
-                              )}
-
-                              {meta && (
-                                <div style={{ marginTop: "14px", fontSize: "12px", color: C.w40, fontFamily: F.body, lineHeight: "1.7" }}>
-                                  <div><strong style={{ color: C.w60 }}>Searches run:</strong> {meta.searches_run?.join(" · ")}</div>
-                                  {meta.url_scanned && (
-                                    <div>
-                                      <strong style={{ color: C.w60 }}>URL scanned:</strong>{" "}
-                                      <a href={meta.url_scanned} target="_blank" rel="noopener noreferrer" style={{ color: C.lightBlue, textDecoration: "none" }}>{meta.url_scanned}</a>
-                                      {" "}({meta.url_scan_status})
-                                    </div>
-                                  )}
-                                  {meta.error && <div style={{ color: "#fca5a5" }}>⚠️ {meta.error}</div>}
-                                  {meta.notes && <div><strong style={{ color: C.w60 }}>Notes:</strong> {meta.notes}</div>}
-                                  <div>Conducted {new Date(meta.timestamp).toLocaleString()}</div>
-                                </div>
+                                <p style={{ margin: 0, fontSize: "14px", color: C.w60, fontFamily: F.body }}>
+                                  None found.
+                                </p>
                               )}
                             </>
                           )}

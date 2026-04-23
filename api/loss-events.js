@@ -161,7 +161,7 @@ export default async function handler(req, res) {
         tools:      [{ type: "web_search_20250305", name: "web_search" }],
         messages:   [{ role: "user", content: userMessage }],
       }),
-      signal: AbortSignal.timeout(100_000),
+      signal: AbortSignal.timeout(18_000),
     });
 
     // Rate-limit retry
@@ -240,6 +240,6 @@ export default async function handler(req, res) {
 }
 
 export const config = {
-  maxDuration: 120,
+  maxDuration: 25,
   api: { bodyParser: { sizeLimit: "1mb" } },
 };
