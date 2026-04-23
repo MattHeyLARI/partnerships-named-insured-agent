@@ -873,7 +873,7 @@ export default function PartnershipsNamedInsuredAgent() {
                 {/* Analysis Summary */}
                 {workbookMetrics?.analysis && (
                   <Section title="Analysis Summary" icon="📈">
-                    <div style={{ display: "flex", gap: "16px", flexWrap: "wrap", marginBottom: "16px" }}>
+                    <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: "16px", marginBottom: "0" }}>
                       <StatCard label="Total Modeled Sales"    value={workbookMetrics.analysis.total_modeled_sales   != null ? `$${Math.round(workbookMetrics.analysis.total_modeled_sales).toLocaleString()}`   : "—"} sub="LARI modelled sales" />
                       <StatCard label="Total Benchmark Sales"  value={workbookMetrics.analysis.total_benchmark_sales != null ? `$${Math.round(workbookMetrics.analysis.total_benchmark_sales).toLocaleString()}` : "—"} sub="Census benchmark" />
                       <StatCard label="Total Benchmark BIV"   value={workbookMetrics.analysis.total_benchmark_biv   != null ? `$${Math.round(workbookMetrics.analysis.total_benchmark_biv).toLocaleString()}`   : "—"} sub="aggregate benchmark BIV" accent />
