@@ -279,9 +279,10 @@ export default function PartnershipsNamedInsuredAgent() {
   ]);
 
   // Results state
-  const [identifyResult, setIdentifyResult] = useState(null);
-  const [chainSummary,   setChainSummary]   = useState(null);
-  const [outputFile,     setOutputFile]     = useState(null);
+  const [identifyResult,   setIdentifyResult]   = useState(null);
+  const [chainSummary,     setChainSummary]     = useState(null);
+  const [workbookMetrics,  setWorkbookMetrics]  = useState(null);
+  const [outputFile,       setOutputFile]       = useState(null);
   const [error,          setError]          = useState(null);
   const [activeTab,      setActiveTab]      = useState("named-insured");
 
@@ -300,7 +301,7 @@ export default function PartnershipsNamedInsuredAgent() {
   const runWorkflow = async () => {
     if (!canRun) return;
     setPhase("running"); setError(null); setIdentifyResult(null);
-    setChainSummary(null); setOutputFile(null); resetSteps(); setActiveTab("named-insured");
+    setChainSummary(null); setWorkbookMetrics(null); setOutputFile(null); resetSteps(); setActiveTab("named-insured");
 
     try {
       setActiveStep("identify"); setStepMsg("Researching named insured…"); setStepPct(5);
@@ -374,6 +375,7 @@ export default function PartnershipsNamedInsuredAgent() {
       const blob = new Blob([bytes], { type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" });
       setOutputFile({ filename: finalComplete.filename, dataUrl: URL.createObjectURL(blob) });
       setChainSummary(finalComplete.summary);
+      setWorkbookMetrics(finalComplete.workbook_metrics ?? null);
       setPhase("done"); setActiveTab("partnerships");
 
     } catch (err) {
@@ -385,7 +387,7 @@ export default function PartnershipsNamedInsuredAgent() {
 
   const reset = () => {
     setPhase("upload"); setNamedInsured(""); setSovFile(null); setError(null);
-    setIdentifyResult(null); setChainSummary(null); setOutputFile(null);
+    setIdentifyResult(null); setChainSummary(null); setWorkbookMetrics(null); setOutputFile(null);
     setActiveTab("named-insured"); resetSteps();
   };
 
@@ -853,6 +855,35 @@ export default function PartnershipsNamedInsuredAgent() {
                       }}
                     >↓ Download Workbook</a>
                   </div>
+                )}
+
+                {/* SOV Summary */}
+                {workbookMetrics?.sov && (
+                  <Section title="SOV Summary" icon="📋">
+                    <div style={{ display: "flex", gap: "16px", flexWrap: "wrap" }}>
+                      <StatCard label="Total Locations"     value={workbookMetrics.sov.total_locations ?? "—"} sub="locations in SOV" />
+                      <StatCard label="Total Submitted BI"  value={workbookMetrics.sov.total_bi_value != null ? `$${Math.round(workbookMetrics.sov.total_bi_value).toLocaleString()}` : "—"} sub="aggregate BI value" accent />
+                      <StatCard label="Average BI Value"    value={workbookMetrics.sov.avg_bi_value    != null ? `$${Math.round(workbookMetrics.sov.avg_bi_value).toLocaleString()}`    : "—"} sub="per location" />
+                      <StatCard label="Primary NAICS"       value={workbookMetrics.sov.primary_naics ?? "—"} sub="most common activity" />
+                      <StatCard label="Unique NAICS"        value={workbookMetrics.sov.unique_naics ?? "—"} sub="distinct codes assigned" />
+                    </div>
+                  </Section>
+                )}
+
+                {/* Analysis Summary */}
+                {workbookMetrics?.analysis && (
+                  <Section title="Analysis Summary" icon="📈">
+                    <div style={{ display: "flex", gap: "16px", flexWrap: "wrap", marginBottom: "16px" }}>
+                      <StatCard label="Total Modeled Sales"    value={workbookMetrics.analysis.total_modeled_sales   != null ? `$${Math.round(workbookMetrics.analysis.total_modeled_sales).toLocaleString()}`   : "—"} sub="LARI modelled sales" />
+                      <StatCard label="Total Benchmark Sales"  value={workbookMetrics.analysis.total_benchmark_sales != null ? `$${Math.round(workbookMetrics.analysis.total_benchmark_sales).toLocaleString()}` : "—"} sub="Census benchmark" />
+                      <StatCard label="Total Benchmark BIV"   value={workbookMetrics.analysis.total_benchmark_biv   != null ? `$${Math.round(workbookMetrics.analysis.total_benchmark_biv).toLocaleString()}`   : "—"} sub="aggregate benchmark BIV" accent />
+                      <StatCard label="Avg Benchmark BIV"     value={workbookMetrics.analysis.avg_benchmark_biv     != null ? `$${Math.round(workbookMetrics.analysis.avg_benchmark_biv).toLocaleString()}`     : "—"} sub="per location" />
+                      <StatCard label="Total Difference"      value={workbookMetrics.analysis.total_difference      != null ? `$${Math.round(workbookMetrics.analysis.total_difference).toLocaleString()}`      : "—"} sub="submitted vs benchmark BIV" />
+                      <StatCard label="Avg Difference"        value={workbookMetrics.analysis.avg_difference        != null ? `$${Math.round(workbookMetrics.analysis.avg_difference).toLocaleString()}`        : "—"} sub="per location" />
+                      <StatCard label="% Difference"          value={workbookMetrics.analysis.pct_difference        != null ? `${(workbookMetrics.analysis.pct_difference * 100).toFixed(1)}%`                  : "—"} sub="avg variance from benchmark" />
+                      <StatCard label="High Risk Locations"   value={workbookMetrics.analysis.high_risk_locations ?? "—"} sub="BIV variance below −50%" accent={workbookMetrics.analysis.high_risk_locations > 0} />
+                    </div>
+                  </Section>
                 )}
 
                 {/* Summary statistics */}
