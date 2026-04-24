@@ -54,7 +54,7 @@ async function consumeSseStream(response, onEvent) {
   }
 }
 
-async function callLossResearch(researchJson, lossUrl) {
+async function callLossResearch(researchJson, lossUrl, attempt = 0) {
   const bypassSecret = process.env.LOSS_RESEARCH_BYPASS_SECRET;
   const headers = { "Content-Type": "application/json" };
   if (bypassSecret) headers["x-vercel-protection-bypass"] = bypassSecret;
@@ -67,6 +67,12 @@ async function callLossResearch(researchJson, lossUrl) {
   });
   if (!res.ok) {
     const errText = await res.text().catch(() => "");
+    // Retry once after 65s if the Anthropic rate limit was hit
+    if (attempt === 0 && (errText.includes("rate_limit_error") || errText.includes("tokens per minute"))) {
+      console.log("[chain:loss] Rate limited — retrying after 65s");
+      await new Promise(r => setTimeout(r, 65_000));
+      return callLossResearch(researchJson, lossUrl, 1);
+    }
     throw new Error(`HTTP ${res.status}: ${errText.slice(0, 200)}`);
   }
   return res.json();
