@@ -285,6 +285,9 @@ export default function PartnershipsNamedInsuredAgent() {
   const [outputFile,       setOutputFile]       = useState(null);
   const [error,          setError]          = useState(null);
   const [activeTab,      setActiveTab]      = useState("named-insured");
+  const [lossResearch,   setLossResearch]   = useState(null);  // null = unavailable, object = result
+  const [lossStepActive, setLossStepActive] = useState(false);
+  const [lossStepDone,   setLossStepDone]   = useState(false);
 
   const markStep = (key, done, isError = false) =>
     setChainSteps(prev => prev.map(s => s.key === key ? { ...s, done, error: isError } : s));
@@ -302,6 +305,7 @@ export default function PartnershipsNamedInsuredAgent() {
     if (!canRun) return;
     setPhase("running"); setError(null); setIdentifyResult(null);
     setChainSummary(null); setWorkbookMetrics(null); setOutputFile(null); resetSteps(); setActiveTab("named-insured");
+    setLossResearch(null); setLossStepActive(false); setLossStepDone(false);
 
     try {
       setActiveStep("identify"); setStepMsg("Researching named insured…"); setStepPct(5);
@@ -354,6 +358,7 @@ export default function PartnershipsNamedInsuredAgent() {
               if (data.pct != null) setStepPct(data.pct);
               if (step === "naics")     markStep("sov", true);
               if (step === "benchmark") markStep("naics", true);
+              if (step === "loss")      setLossStepActive(true);
             } else if (currentEvent === "error") {
               chainError = data; markStep(data.step || "chain", false, true);
             } else if (currentEvent === "complete") {
@@ -376,6 +381,9 @@ export default function PartnershipsNamedInsuredAgent() {
       setOutputFile({ filename: finalComplete.filename, dataUrl: URL.createObjectURL(blob) });
       setChainSummary(finalComplete.summary);
       setWorkbookMetrics(finalComplete.workbook_metrics ?? null);
+      setLossResearch(finalComplete.loss_research ?? null);
+      setLossStepActive(false);
+      setLossStepDone(true);
       setPhase("done"); setActiveTab("partnerships");
 
     } catch (err) {
@@ -389,6 +397,7 @@ export default function PartnershipsNamedInsuredAgent() {
     setPhase("upload"); setNamedInsured(""); setSovFile(null); setError(null);
     setIdentifyResult(null); setChainSummary(null); setWorkbookMetrics(null); setOutputFile(null);
     setActiveTab("named-insured"); resetSteps();
+    setLossResearch(null); setLossStepActive(false); setLossStepDone(false);
   };
 
   const tabs = [
@@ -572,7 +581,37 @@ export default function PartnershipsNamedInsuredAgent() {
               background: C.cardStd, border: `1px solid ${C.cardStdBorder}`,
               borderRadius: "16px", padding: "40px 32px",
             }}>
+              {/* Track A */}
+              <div style={{ fontSize: "10px", color: C.w40, textTransform: "uppercase", letterSpacing: "0.08em", marginBottom: "6px", fontFamily: F.body }}>Track A — Analysis Chain</div>
               <ChainProgress steps={chainSteps} activeStep={activeStep} />
+
+              {/* Track B — Loss research (parallel) */}
+              <div style={{
+                marginTop: "16px", display: "flex", alignItems: "center", gap: "12px",
+                padding: "12px 18px", background: C.w10,
+                border: `1px solid ${lossStepDone ? `${C.orange}44` : lossStepActive ? C.w20 : C.w10}`,
+                borderRadius: "10px", transition: "border-color 0.3s",
+              }}>
+                <div style={{ fontSize: "10px", color: C.w40, textTransform: "uppercase", letterSpacing: "0.08em", flexShrink: 0, fontFamily: F.body }}>Track B — Parallel</div>
+                <div style={{
+                  width: "26px", height: "26px", borderRadius: "50%", flexShrink: 0,
+                  display: "flex", alignItems: "center", justifyContent: "center",
+                  fontSize: "11px", fontWeight: "700", fontFamily: F.body,
+                  background: lossStepDone ? `${C.orange}25` : lossStepActive ? C.w20 : "transparent",
+                  border: `2px solid ${lossStepDone ? C.orange : lossStepActive ? C.w100 : C.w40}`,
+                  color: lossStepDone ? C.orange : lossStepActive ? C.w100 : C.w40,
+                  animation: lossStepActive && !lossStepDone ? "pulse 1.5s ease-in-out infinite" : "none",
+                }}>
+                  {lossStepDone ? "✓" : "?"}
+                </div>
+                <div style={{ fontSize: "13px", fontFamily: F.body, color: lossStepDone ? C.w80 : lossStepActive ? C.w80 : C.w40 }}>
+                  {lossStepDone ? "Loss research complete" : lossStepActive ? "Researching loss events…" : "Loss research queued"}
+                </div>
+                {lossStepActive && !lossStepDone && (
+                  <div style={{ marginLeft: "auto", width: "14px", height: "14px", borderRadius: "50%", border: `2px solid ${C.w20}`, borderTopColor: C.orange, animation: "spin 0.8s linear infinite" }} />
+                )}
+              </div>
+
               <div style={{ textAlign: "center" }}>
                 <div style={{ display: "flex", justifyContent: "center", marginBottom: "20px" }}>
                   <div style={{
@@ -823,6 +862,50 @@ export default function PartnershipsNamedInsuredAgent() {
                     <p style={{ margin: 0, color: C.w60, fontSize: "14px", fontFamily: F.body }}>Research data is not available.</p>
                   </Section>
                 )}
+
+                {/* ── Loss Event Research ── */}
+                <Section title="Loss Event Research" icon="🔍">
+                  {lossResearch === null ? (
+                    <div style={{ padding: "14px 18px", background: `${C.lavender}18`, border: `1px solid ${C.lavender}44`, borderRadius: "10px" }}>
+                      <span style={{ fontSize: "14px", color: C.lavender, fontFamily: F.body }}>Search unavailable — please retry.</span>
+                    </div>
+                  ) : !lossResearch.loss_research?.loss_events_found || (lossResearch.loss_research?.loss_events?.length ?? 0) === 0 ? (
+                    <div style={{ padding: "14px 18px", background: `${C.lavender}18`, border: `1px solid ${C.lavender}44`, borderRadius: "10px" }}>
+                      <span style={{ fontSize: "14px", color: C.lavender, fontFamily: F.body }}>None found.</span>
+                    </div>
+                  ) : (
+                    <div style={{ display: "grid", gap: "10px" }}>
+                      {[...lossResearch.loss_research.loss_events]
+                        .sort((a, b) => {
+                          const sevOrder = { material: 0, unknown: 1, minor: 2 };
+                          const diff = (sevOrder[a.severity_indicator] ?? 1) - (sevOrder[b.severity_indicator] ?? 1);
+                          if (diff !== 0) return diff;
+                          return (b.date_or_period || "").localeCompare(a.date_or_period || "");
+                        })
+                        .map((ev, i) => {
+                          const sevColor = ev.severity_indicator === "material" ? C.orange : ev.severity_indicator === "minor" ? C.lavender : C.lightBlue;
+                          const typeColor = ev.event_type === "commercial_property" ? C.orange : ev.event_type === "business_interruption" ? C.lightBlue : C.lavender;
+                          return (
+                            <div key={i} style={{ background: C.cardStd, border: `1px solid ${C.cardStdBorder}`, borderRadius: "12px", padding: "16px 20px" }}>
+                              <div style={{ display: "flex", flexWrap: "wrap", gap: "8px", alignItems: "center", marginBottom: "10px" }}>
+                                {ev.date_or_period && (
+                                  <span style={{ fontWeight: "600", fontSize: "13px", fontFamily: F.body, color: C.w80 }}>{ev.date_or_period}</span>
+                                )}
+                                <span style={{ padding: "2px 10px", borderRadius: "20px", fontSize: "11px", fontWeight: "700", letterSpacing: "0.05em", textTransform: "uppercase", fontFamily: F.body, background: `${typeColor}22`, border: `1px solid ${typeColor}88`, color: typeColor }}>
+                                  {ev.event_type.replace(/_/g, " ")}
+                                </span>
+                                <span style={{ padding: "2px 10px", borderRadius: "20px", fontSize: "11px", fontWeight: "700", letterSpacing: "0.05em", textTransform: "uppercase", fontFamily: F.body, background: `${sevColor}22`, border: `1px solid ${sevColor}88`, color: sevColor }}>
+                                  {ev.severity_indicator}
+                                </span>
+                              </div>
+                              <p style={{ margin: "0 0 10px 0", fontSize: "14px", color: C.w80, lineHeight: "1.6", fontFamily: F.body }}>{ev.description}</p>
+                              <a href={ev.source_url} target="_blank" rel="noreferrer" style={{ fontSize: "12px", color: C.lightBlue, fontFamily: F.body, textDecoration: "none", wordBreak: "break-all" }}>🔗 {ev.source_url}</a>
+                            </div>
+                          );
+                        })}
+                    </div>
+                  )}
+                </Section>
               </div>
             )}
 
@@ -893,6 +976,16 @@ export default function PartnershipsNamedInsuredAgent() {
                       <StatCard label="Total Locations" value={chainSummary.location_count ?? "—"} sub="processed through benchmark" />
                       <StatCard label="FIPS Resolved" value={`${chainSummary.fips_resolved ?? "—"} / ${chainSummary.location_count ?? "—"}`} sub={chainSummary.location_count > 0 ? `${pct(chainSummary.fips_resolved, chainSummary.location_count)} resolution rate` : ""} accent />
                       <StatCard label="Unresolved" value={chainSummary.fips_failed_count ?? "—"} sub="failed FIPS geocoding" />
+                      <StatCard
+                        label="Loss Events Identified"
+                        value={
+                          lossResearch === null ? "Unavailable" :
+                          !lossResearch.loss_research?.loss_events_found ? "None found" :
+                          String(lossResearch.loss_research.loss_events?.length ?? 0)
+                        }
+                        sub="from public sources"
+                        accent={lossResearch?.loss_research?.loss_events_found}
+                      />
                     </div>
                     {chainSummary.fips_failed_count > 0 && (
                       <div style={{ background: `${C.orange}12`, border: `1px solid ${C.orange}44`, borderRadius: "10px", padding: "14px 16px" }}>
@@ -949,7 +1042,7 @@ export default function PartnershipsNamedInsuredAgent() {
                 <div style={{ display: "flex", justifyContent: "flex-end", marginBottom: "10px" }}>
                   <button
                     className="ghost-btn"
-                    onClick={() => navigator.clipboard.writeText(JSON.stringify({ identifyResult, chainSummary }, null, 2))}
+                    onClick={() => navigator.clipboard.writeText(JSON.stringify({ identifyResult, chainSummary, loss_research: lossResearch }, null, 2))}
                     style={{
                       background: "transparent", border: `2px solid ${C.w20}`, color: C.w60,
                       padding: "7px 16px", borderRadius: "8px", fontSize: "12px",
@@ -965,7 +1058,7 @@ export default function PartnershipsNamedInsuredAgent() {
                   fontFamily: "'DM Mono', 'Fira Code', 'Courier New', monospace",
                   whiteSpace: "pre-wrap", wordBreak: "break-word",
                 }}>
-                  {JSON.stringify({ identifyResult, chainSummary }, null, 2)}
+                  {JSON.stringify({ identifyResult, chainSummary, loss_research: lossResearch }, null, 2)}
                 </pre>
               </div>
             )}
