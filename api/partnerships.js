@@ -17,6 +17,20 @@
 //     metadata: { ...research_data... }
 //   }
 
+async function callLossResearch(researchJson, lossUrl) {
+  const res = await fetch(`${lossUrl}/api/research`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(researchJson),
+    signal: AbortSignal.timeout(65_000),
+  });
+  if (!res.ok) {
+    const errText = await res.text().catch(() => "");
+    throw new Error(`HTTP ${res.status}: ${errText.slice(0, 200)}`);
+  }
+  return res.json();
+}
+
 export default async function handler(req, res) {
   if (req.method !== "POST") {
     return res.status(405).json({ error: "Method not allowed" });
@@ -55,10 +69,19 @@ export default async function handler(req, res) {
   const SOV_URL   = process.env.PARTNERSHIPS_SOV_APP_URL;
   const NAICS_URL = process.env.PARTNERSHIPS_NAICS_APP_URL;
   const BENCH_URL = process.env.PARTNERSHIPS_BENCHMARK_APP_URL;
+  const LOSS_URL  = process.env.PARTNERSHIPS_LOSS_RESEARCH_URL;
 
   if (!SOV_URL || !NAICS_URL || !BENCH_URL) {
     return res.status(500).json({ error: "One or more partnerships service URLs are not configured." });
   }
+
+  // ---- Track B: loss research in parallel with Track A --------------------
+  const lossPromise = LOSS_URL && identifyResult.research_data
+    ? callLossResearch(identifyResult.research_data, LOSS_URL).catch(err => {
+        errors.push(`Loss research error: ${err.message}`);
+        return null;
+      })
+    : Promise.resolve(null);
 
   const sovBuffer   = Buffer.from(sovBase64, "base64");
   const sovFilename = sovName || "sov.xlsx";
@@ -148,6 +171,15 @@ export default async function handler(req, res) {
     return res.status(502).json({ error: "Benchmark stream ended without a complete event", errors });
   }
 
+  // ---- Await Track B (likely already resolved) ----------------------------
+  const lossData = await lossPromise;
+  const lossEvents = lossData?.loss_research?.loss_events ?? [];
+  const lossStatus = lossData === null
+    ? "unavailable"
+    : lossData.loss_research?.loss_events_found
+      ? "success"
+      : "none_found";
+
   // ---- Build response ------------------------------------------------------
   const safeNamed = namedInsured.replace(/[^a-zA-Z0-9 _-]/g, "").trim();
   const outputFilename = `${safeNamed}_LARI_benchmark.xlsx`;
@@ -163,9 +195,14 @@ export default async function handler(req, res) {
       output_data_base64:   benchComplete.data,
       location_count:       summary.rows       || 0,
       fips_resolution_rate: summary.rows > 0 ? (summary.geocoded / summary.rows) : 0,
-      fips_failed:          [],     // detailed list not available from benchmark summary
-      naics_distribution:   {},     // not available from chain output currently
-      processing_errors:    errors,
+      fips_failed:          [],
+      naics_distribution:   {},
+      loss_events: {
+        events:       lossEvents,
+        result_count: lossEvents.length,
+        status:       lossStatus,
+      },
+      processing_errors: errors,
     },
     metadata: identifyResult.research_data || {},
   });

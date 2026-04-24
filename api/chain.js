@@ -54,6 +54,20 @@ async function consumeSseStream(response, onEvent) {
   }
 }
 
+async function callLossResearch(researchJson, lossUrl) {
+  const res = await fetch(`${lossUrl}/api/research`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(researchJson),
+    signal: AbortSignal.timeout(65_000),
+  });
+  if (!res.ok) {
+    const errText = await res.text().catch(() => "");
+    throw new Error(`HTTP ${res.status}: ${errText.slice(0, 200)}`);
+  }
+  return res.json();
+}
+
 export default async function handler(req, res) {
   if (req.method !== "POST") {
     return res.status(405).json({ error: "Method not allowed" });
@@ -68,6 +82,7 @@ export default async function handler(req, res) {
   const SOV_URL     = process.env.PARTNERSHIPS_SOV_APP_URL;
   const NAICS_URL   = process.env.PARTNERSHIPS_NAICS_APP_URL;
   const BENCH_URL   = process.env.PARTNERSHIPS_BENCHMARK_APP_URL;
+  const LOSS_URL    = process.env.PARTNERSHIPS_LOSS_RESEARCH_URL;
 
   if (!SOV_URL || !NAICS_URL || !BENCH_URL) {
     return res.status(500).json({ error: "One or more partnerships service URLs are not configured." });
@@ -89,6 +104,15 @@ export default async function handler(req, res) {
     console.error(`[chain:${step}] ERROR: ${message}`);
     res.end();
   };
+
+  // ---- Track B: loss research (parallel with Track A) ----------------------
+  const lossPromise = LOSS_URL && researchJson
+    ? callLossResearch(researchJson, LOSS_URL).catch(err => {
+        console.error("[chain:loss] Error:", err.message);
+        return null;
+      })
+    : Promise.resolve(null);
+  send("loss", "Researching loss events in parallel…");
 
   try {
     // Convert SOV base64 back to Buffer
@@ -204,6 +228,9 @@ export default async function handler(req, res) {
       return fail("benchmark", "Benchmark stream ended without a complete event.");
     }
 
+    // ---- Await Track B (likely already resolved) ----------------------------
+    const lossData = await lossPromise;
+
     // ---- Build final output filename ----------------------------------------
     const safeNamed = namedInsured.replace(/[^a-zA-Z0-9 _-]/g, "").trim();
     const finalFilename = `${safeNamed}_LARI_benchmark.xlsx`;
@@ -220,6 +247,7 @@ export default async function handler(req, res) {
         fips_resolution_rate:  summary.rows > 0 ? (summary.geocoded / summary.rows) : 0,
       },
       workbook_metrics: completePayload.workbook_metrics ?? null,
+      loss_research: lossData,
     });
 
     console.log(`[chain] Complete. Output: ${finalFilename}`);
