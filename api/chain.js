@@ -115,15 +115,6 @@ export default async function handler(req, res) {
     res.end();
   };
 
-  // ---- Track B: loss research (parallel with Track A) ----------------------
-  const lossPromise = LOSS_URL && researchJson
-    ? callLossResearch(researchJson, LOSS_URL).catch(err => {
-        console.error("[chain:loss] Error:", err.message);
-        return null;
-      })
-    : Promise.resolve(null);
-  send("loss", "Researching loss events in parallel…");
-
   try {
     // Convert SOV base64 back to Buffer
     const sovBuffer = Buffer.from(sovBase64, "base64");
@@ -238,8 +229,14 @@ export default async function handler(req, res) {
       return fail("benchmark", "Benchmark stream ended without a complete event.");
     }
 
-    // ---- Await Track B (likely already resolved) ----------------------------
-    const lossData = await lossPromise;
+    // ---- Loss research (after benchmark — avoids shared rate limit) ----------
+    send("loss", "Researching loss events…");
+    const lossData = LOSS_URL && researchJson
+      ? await callLossResearch(researchJson, LOSS_URL).catch(err => {
+          console.error("[chain:loss] Error:", err.message);
+          return null;
+        })
+      : null;
 
     // ---- Build final output filename ----------------------------------------
     const safeNamed = namedInsured.replace(/[^a-zA-Z0-9 _-]/g, "").trim();

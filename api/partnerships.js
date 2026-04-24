@@ -84,13 +84,6 @@ export default async function handler(req, res) {
     return res.status(500).json({ error: "One or more partnerships service URLs are not configured." });
   }
 
-  // ---- Track B: loss research in parallel with Track A --------------------
-  const lossPromise = LOSS_URL && identifyResult.research_data
-    ? callLossResearch(identifyResult.research_data, LOSS_URL).catch(err => {
-        errors.push(`Loss research error: ${err.message}`);
-        return null;
-      })
-    : Promise.resolve(null);
 
   const sovBuffer   = Buffer.from(sovBase64, "base64");
   const sovFilename = sovName || "sov.xlsx";
@@ -180,8 +173,13 @@ export default async function handler(req, res) {
     return res.status(502).json({ error: "Benchmark stream ended without a complete event", errors });
   }
 
-  // ---- Await Track B (likely already resolved) ----------------------------
-  const lossData = await lossPromise;
+  // ---- Loss research (after benchmark — avoids shared rate limit) ----------
+  const lossData = LOSS_URL && identifyResult.research_data
+    ? await callLossResearch(identifyResult.research_data, LOSS_URL).catch(err => {
+        errors.push(`Loss research error: ${err.message}`);
+        return null;
+      })
+    : null;
   const lossEvents = lossData?.loss_research?.loss_events ?? [];
   const lossStatus = lossData === null
     ? "unavailable"
