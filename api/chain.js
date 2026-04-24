@@ -55,9 +55,13 @@ async function consumeSseStream(response, onEvent) {
 }
 
 async function callLossResearch(researchJson, lossUrl) {
+  const bypassSecret = process.env.LOSS_RESEARCH_BYPASS_SECRET;
+  const headers = { "Content-Type": "application/json" };
+  if (bypassSecret) headers["x-vercel-protection-bypass"] = bypassSecret;
+
   const res = await fetch(`${lossUrl}/api/research`, {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
+    headers,
     body: JSON.stringify(researchJson),
     signal: AbortSignal.timeout(65_000),
   });
