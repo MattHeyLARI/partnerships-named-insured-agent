@@ -272,10 +272,10 @@ export default function PartnershipsNamedInsuredAgent() {
   const [stepPct,    setStepPct]    = useState(0);
   const [activeStep, setActiveStep] = useState(null);
   const [chainSteps, setChainSteps] = useState([
-    { key: "identify",  label: "Named Insured", done: false, error: false },
+    { key: "identify",  label: "RESEARCH",      done: false, error: false },
     { key: "sov",       label: "SOV",           done: false, error: false },
     { key: "naics",     label: "NAICS",         done: false, error: false },
-    { key: "benchmark", label: "Benchmark",     done: false, error: false },
+    { key: "benchmark", label: "BENCHMARK",     done: false, error: false },
   ]);
 
   // Results state
@@ -293,10 +293,10 @@ export default function PartnershipsNamedInsuredAgent() {
     setChainSteps(prev => prev.map(s => s.key === key ? { ...s, done, error: isError } : s));
 
   const resetSteps = () => setChainSteps([
-    { key: "identify",  label: "Named Insured", done: false, error: false },
+    { key: "identify",  label: "RESEARCH",      done: false, error: false },
     { key: "sov",       label: "SOV",           done: false, error: false },
     { key: "naics",     label: "NAICS",         done: false, error: false },
-    { key: "benchmark", label: "Benchmark",     done: false, error: false },
+    { key: "benchmark", label: "BENCHMARK",     done: false, error: false },
   ]);
 
   const canRun = namedInsured.trim().length > 0 && sovFile !== null;
@@ -581,36 +581,7 @@ export default function PartnershipsNamedInsuredAgent() {
               background: C.cardStd, border: `1px solid ${C.cardStdBorder}`,
               borderRadius: "16px", padding: "40px 32px",
             }}>
-              {/* Track A */}
-              <div style={{ fontSize: "10px", color: C.w40, textTransform: "uppercase", letterSpacing: "0.08em", marginBottom: "6px", fontFamily: F.body }}>Track A — Analysis Chain</div>
               <ChainProgress steps={chainSteps} activeStep={activeStep} />
-
-              {/* Track B — Loss research (parallel) */}
-              <div style={{
-                marginTop: "16px", display: "flex", alignItems: "center", gap: "12px",
-                padding: "12px 18px", background: C.w10,
-                border: `1px solid ${lossStepDone ? `${C.orange}44` : lossStepActive ? C.w20 : C.w10}`,
-                borderRadius: "10px", transition: "border-color 0.3s",
-              }}>
-                <div style={{ fontSize: "10px", color: C.w40, textTransform: "uppercase", letterSpacing: "0.08em", flexShrink: 0, fontFamily: F.body }}>Track B — Parallel</div>
-                <div style={{
-                  width: "26px", height: "26px", borderRadius: "50%", flexShrink: 0,
-                  display: "flex", alignItems: "center", justifyContent: "center",
-                  fontSize: "11px", fontWeight: "700", fontFamily: F.body,
-                  background: lossStepDone ? `${C.orange}25` : lossStepActive ? C.w20 : "transparent",
-                  border: `2px solid ${lossStepDone ? C.orange : lossStepActive ? C.w100 : C.w40}`,
-                  color: lossStepDone ? C.orange : lossStepActive ? C.w100 : C.w40,
-                  animation: lossStepActive && !lossStepDone ? "pulse 1.5s ease-in-out infinite" : "none",
-                }}>
-                  {lossStepDone ? "✓" : "?"}
-                </div>
-                <div style={{ fontSize: "13px", fontFamily: F.body, color: lossStepDone ? C.w80 : lossStepActive ? C.w80 : C.w40 }}>
-                  {lossStepDone ? "Loss research complete" : lossStepActive ? "Researching loss events…" : "Loss research queued"}
-                </div>
-                {lossStepActive && !lossStepDone && (
-                  <div style={{ marginLeft: "auto", width: "14px", height: "14px", borderRadius: "50%", border: `2px solid ${C.w20}`, borderTopColor: C.orange, animation: "spin 0.8s linear infinite" }} />
-                )}
-              </div>
 
               <div style={{ textAlign: "center" }}>
                 <div style={{ display: "flex", justifyContent: "center", marginBottom: "20px" }}>
