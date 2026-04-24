@@ -834,49 +834,6 @@ export default function PartnershipsNamedInsuredAgent() {
                   </Section>
                 )}
 
-                {/* ── Loss Event Research ── */}
-                <Section title="Loss Event Research" icon="🔍">
-                  {lossResearch === null ? (
-                    <div style={{ padding: "14px 18px", background: `${C.lavender}18`, border: `1px solid ${C.lavender}44`, borderRadius: "10px" }}>
-                      <span style={{ fontSize: "14px", color: C.lavender, fontFamily: F.body }}>Search unavailable — please retry.</span>
-                    </div>
-                  ) : !lossResearch.loss_research?.loss_events_found || (lossResearch.loss_research?.loss_events?.length ?? 0) === 0 ? (
-                    <div style={{ padding: "14px 18px", background: `${C.lavender}18`, border: `1px solid ${C.lavender}44`, borderRadius: "10px" }}>
-                      <span style={{ fontSize: "14px", color: C.lavender, fontFamily: F.body }}>None found.</span>
-                    </div>
-                  ) : (
-                    <div style={{ display: "grid", gap: "10px" }}>
-                      {[...lossResearch.loss_research.loss_events]
-                        .sort((a, b) => {
-                          const sevOrder = { material: 0, unknown: 1, minor: 2 };
-                          const diff = (sevOrder[a.severity_indicator] ?? 1) - (sevOrder[b.severity_indicator] ?? 1);
-                          if (diff !== 0) return diff;
-                          return (b.date_or_period || "").localeCompare(a.date_or_period || "");
-                        })
-                        .map((ev, i) => {
-                          const sevColor = ev.severity_indicator === "material" ? C.orange : ev.severity_indicator === "minor" ? C.lavender : C.lightBlue;
-                          const typeColor = ev.event_type === "commercial_property" ? C.orange : ev.event_type === "business_interruption" ? C.lightBlue : C.lavender;
-                          return (
-                            <div key={i} style={{ background: C.cardStd, border: `1px solid ${C.cardStdBorder}`, borderRadius: "12px", padding: "16px 20px" }}>
-                              <div style={{ display: "flex", flexWrap: "wrap", gap: "8px", alignItems: "center", marginBottom: "10px" }}>
-                                {ev.date_or_period && (
-                                  <span style={{ fontWeight: "600", fontSize: "13px", fontFamily: F.body, color: C.w80 }}>{ev.date_or_period}</span>
-                                )}
-                                <span style={{ padding: "2px 10px", borderRadius: "20px", fontSize: "11px", fontWeight: "700", letterSpacing: "0.05em", textTransform: "uppercase", fontFamily: F.body, background: `${typeColor}22`, border: `1px solid ${typeColor}88`, color: typeColor }}>
-                                  {ev.event_type.replace(/_/g, " ")}
-                                </span>
-                                <span style={{ padding: "2px 10px", borderRadius: "20px", fontSize: "11px", fontWeight: "700", letterSpacing: "0.05em", textTransform: "uppercase", fontFamily: F.body, background: `${sevColor}22`, border: `1px solid ${sevColor}88`, color: sevColor }}>
-                                  {ev.severity_indicator}
-                                </span>
-                              </div>
-                              <p style={{ margin: "0 0 10px 0", fontSize: "14px", color: C.w80, lineHeight: "1.6", fontFamily: F.body }}>{ev.description}</p>
-                              <a href={ev.source_url} target="_blank" rel="noreferrer" style={{ fontSize: "12px", color: C.lightBlue, fontFamily: F.body, textDecoration: "none", wordBreak: "break-all" }}>🔗 {ev.source_url}</a>
-                            </div>
-                          );
-                        })}
-                    </div>
-                  )}
-                </Section>
               </div>
             )}
 
@@ -939,6 +896,50 @@ export default function PartnershipsNamedInsuredAgent() {
                     </div>
                   </Section>
                 )}
+
+                {/* ── Loss Event Research ── */}
+                <Section title="Loss Event Research" icon="🔍">
+                  {lossResearch === null ? (
+                    <div style={{ padding: "14px 18px", background: `${C.lavender}18`, border: `1px solid ${C.lavender}44`, borderRadius: "10px" }}>
+                      <span style={{ fontSize: "14px", color: C.lavender, fontFamily: F.body }}>Search unavailable — please retry.</span>
+                    </div>
+                  ) : !lossResearch.loss_research?.loss_events_found || (lossResearch.loss_research?.loss_events?.length ?? 0) === 0 ? (
+                    <div style={{ padding: "14px 18px", background: `${C.lavender}18`, border: `1px solid ${C.lavender}44`, borderRadius: "10px" }}>
+                      <span style={{ fontSize: "14px", color: C.lavender, fontFamily: F.body }}>None found.</span>
+                    </div>
+                  ) : (
+                    <div style={{ display: "grid", gap: "10px" }}>
+                      {[...lossResearch.loss_research.loss_events]
+                        .sort((a, b) => {
+                          const sevOrder = { material: 0, unknown: 1, minor: 2 };
+                          const diff = (sevOrder[a.severity_indicator] ?? 1) - (sevOrder[b.severity_indicator] ?? 1);
+                          if (diff !== 0) return diff;
+                          return (b.date_or_period || "").localeCompare(a.date_or_period || "");
+                        })
+                        .map((ev, i) => {
+                          const sevColor = ev.severity_indicator === "material" ? C.orange : ev.severity_indicator === "minor" ? C.lavender : C.lightBlue;
+                          const typeColor = ev.event_type === "commercial_property" ? C.orange : ev.event_type === "business_interruption" ? C.lightBlue : C.lavender;
+                          return (
+                            <div key={i} style={{ background: C.cardStd, border: `1px solid ${C.cardStdBorder}`, borderRadius: "12px", padding: "16px 20px" }}>
+                              <div style={{ display: "flex", flexWrap: "wrap", gap: "8px", alignItems: "center", marginBottom: "10px" }}>
+                                {ev.date_or_period && (
+                                  <span style={{ fontWeight: "600", fontSize: "13px", fontFamily: F.body, color: C.w80 }}>{ev.date_or_period}</span>
+                                )}
+                                <span style={{ padding: "2px 10px", borderRadius: "20px", fontSize: "11px", fontWeight: "700", letterSpacing: "0.05em", textTransform: "uppercase", fontFamily: F.body, background: `${typeColor}22`, border: `1px solid ${typeColor}88`, color: typeColor }}>
+                                  {ev.event_type.replace(/_/g, " ")}
+                                </span>
+                                <span style={{ padding: "2px 10px", borderRadius: "20px", fontSize: "11px", fontWeight: "700", letterSpacing: "0.05em", textTransform: "uppercase", fontFamily: F.body, background: `${sevColor}22`, border: `1px solid ${sevColor}88`, color: sevColor }}>
+                                  {ev.severity_indicator}
+                                </span>
+                              </div>
+                              <p style={{ margin: "0 0 10px 0", fontSize: "14px", color: C.w80, lineHeight: "1.6", fontFamily: F.body }}>{ev.description}</p>
+                              <a href={ev.source_url} target="_blank" rel="noreferrer" style={{ fontSize: "12px", color: C.lightBlue, fontFamily: F.body, textDecoration: "none", wordBreak: "break-all" }}>🔗 {ev.source_url}</a>
+                            </div>
+                          );
+                        })}
+                    </div>
+                  )}
+                </Section>
 
                 {/* Summary statistics */}
                 {chainSummary && (
